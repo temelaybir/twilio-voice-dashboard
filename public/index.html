@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twilio Çağrı Paneli</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f4f7f6; display: flex; justify-content: center; align-items: flex-start; padding-top: 40px; }
+        .container { width: 100%; max-width: 800px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background-color: #001f44; color: white; padding: 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .content { padding: 20px; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        #phoneNumber { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        #callButton { padding: 10px 20px; border: none; background-color: #f22f46; color: white; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; }
+        #callButton:hover { background-color: #d71a30; }
+        #callButton:disabled { background-color: #ccc; cursor: not-allowed; }
+        #logsContainer { background-color: #2d3748; color: #f7fafc; padding: 15px; border-radius: 4px; height: 500px; overflow-y: auto; font-family: "Courier New", Courier, monospace; font-size: 14px; white-space: pre-wrap; }
+        .log-entry { padding: 5px 0; border-bottom: 1px solid #4a5568; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-info { color: #48bb78; }
+        .log-error { color: #f56565; }
+        .log-warn { color: #ecc94b; }
+        .log-dtmf { color: #4299e1; }
+        .log-status { color: #9f7aea; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Twilio Çağrı Kontrol Paneli</h1>
+    </div>
+    <div class="content">
+        <div class="controls">
+            <input type="tel" id="phoneNumber" placeholder="+905551234567">
+            <button id="callButton">📞 Ara</button>
+        </div>
+        <div id="logsContainer"></div>
+    </div>
+</div>
+
+<script>
+    const phoneNumberInput = document.getElementById('phoneNumber');
+    const callButton = document.getElementById('callButton');
+    const logsContainer = document.getElementById('logsContainer');
+
+    function addLog(message, type = 'info') {
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry log-${type}`;
+        
+        const timestamp = new Date().toLocaleTimeString();
+        let formattedMessage = `[${timestamp}] `;
+        
+        if (typeof message === 'object') {
+            formattedMessage += JSON.stringify(message, null, 2);
+        } else {
+            formattedMessage += message;
+        }
+        
+        logEntry.textContent = formattedMessage;
+        logsContainer.appendChild(logEntry);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    // Socket.IO Bağlantısı
+    addLog('Socket.IO sunucusuna bağlanılıyor...', 'info');
+    const socket = io({
+        transports: ['websocket', 'polling']
+    });
+
+    socket.on('connect', () => {
+        addLog('Socket.IO bağlantısı başarılı!', 'info');
+    });
+
+    socket.on('connect_error', (error) => {
+        addLog(`Socket.IO bağlantı hatası: ${error.message}`, 'error');
+    });
+
+    socket.on('disconnect', () => {
+        addLog('Socket.IO bağlantısı kesildi.', 'warn');
+    });
+
+    // Gelen Event'leri dinle
+    const eventsToLog = ['statusUpdate', 'dtmfUpdate', 'flowUpdate', 'bulkCallProgress', 'bulkCallComplete'];
+    eventsToLog.forEach(event => {
+        socket.on(event, (data) => {
+            let type = 'status';
+            if(event.includes('dtmf')) type = 'dtmf';
+            if(event.includes('error')) type = 'error';
+
+            addLog(`Gelen Event: ${event}`, type);
+            addLog(data, type);
+        });
+    });
+
+    // Çağrı Başlatma
+    callButton.addEventListener('click', async () => {
+        const phoneNumber = phoneNumberInput.value;
+        if (!phoneNumber) {
+            addLog('Lütfen geçerli bir telefon numarası girin.', 'error');
+            return;
+        }
+
+        addLog(`Çağrı başlatılıyor: ${phoneNumber}`, 'info');
+        callButton.disabled = true;
+        callButton.textContent = 'Aranıyor...';
+
+        try {
+            const response = await fetch('/api/calls/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ to: phoneNumber })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || `HTTP error! status: ${response.status}`);
+            }
+
+            addLog('Çağrı başlatma isteği başarılı.', 'info');
+            addLog(result, 'info');
+
+        } catch (error) {
+            addLog(`Çağrı başlatma hatası: ${error.message}`, 'error');
+        } finally {
+            callButton.disabled = false;
+            callButton.textContent = '📞 Ara';
+        }
+    });
+
+</script>
+</body>
+</html> 

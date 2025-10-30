@@ -1,0 +1,107 @@
+# Bağımlılıklar
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+lerna-debug.log
+
+# Ortam değişkenleri
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# Veritabanı
+data/*.sqlite
+data/*.sqlite-journal
+
+# Log dosyaları
+*.log
+logs/
+combined.log
+error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Derleme çıktıları
+dist/
+build/
+out/
+
+# Geçici dosyalar
+.DS_Store
+.tmp/
+.temp/
+.cache/
+*.swp
+*.swo
+
+# IDE ve editör dosyaları
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# Ngrok
+.ngrok/
+
+# PM2
+.pm2/
+pm2.config.js
+ecosystem.config.js
+
+# Vercel
+.vercel
+
+# Sentry
+.sentryclirc
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Test
+test-results/
+playwright-report/
+
+# OS
+Thumbs.db
+desktop.ini
+*.tmp
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# SSL Certificates (if any)
+*.pem
+*.key
+*.crt
+*.p12
+
+# Database backups
+*.sql
+*.dump
+
+# Frontend (Next.js)
+voice-dashboard/node_modules/
+voice-dashboard/.next/
+voice-dashboard/out/
+voice-dashboard/build/
+voice-dashboard/dist/
+voice-dashboard/.env.local
+voice-dashboard/.env.development.local
+voice-dashboard/.env.test.local
+voice-dashboard/.env.production.local
+voice-dashboard/.vercel
+voice-dashboard/.turbo
+voice-dashboard/next-env.d.ts 

@@ -1,0 +1,487 @@
+{
+  "description": "Outgoing Call Flow",
+  "states": [
+    {
+      "name": "Trigger",
+      "type": "trigger",
+      "transitions": [
+        {
+          "event": "incomingMessage"
+        },
+        {
+          "event": "incomingCall"
+        },
+        {
+          "event": "incomingConversationMessage"
+        },
+        {
+          "next": "set_variables_1",
+          "event": "incomingRequest"
+        },
+        {
+          "event": "incomingParent"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 10,
+          "y": -2330
+        }
+      }
+    },
+    {
+      "name": "happy-outgoing",
+      "type": "gather-input-on-call",
+      "transitions": [
+        {
+          "next": "main_menu_webhook",
+          "event": "keypress"
+        },
+        {
+          "event": "speech"
+        },
+        {
+          "next": "happy-outgoing",
+          "event": "timeout"
+        }
+      ],
+      "properties": {
+        "voice": "Polly.Amy-Neural",
+        "speech_timeout": "110",
+        "offset": {
+          "x": -550,
+          "y": -1560
+        },
+        "loop": 2,
+        "finish_on_key": "#",
+        "say": "Good evening. This is Happy Smile Clinics. We're calling to remind you about your appointment for the Free Dental Consultation event in Basingstoke... The event will take place this weekend at the Holiday Inn Hotel Basingstoke. If you’re planning to attend, please press 1. If you’re no longer interested, press 2. To leave us a voicemail, press 0. For any changes to your appointment date, please send us a message on WhatsApp or via SMS.",
+        "language": "en-GB",
+        "stop_gather": false,
+        "gather_language": "en-GB",
+        "speech_model": "numbers_and_commands",
+        "profanity_filter": "true",
+        "timeout": 5
+      }
+    },
+    {
+      "name": "stage_1",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "happy-outgoing",
+          "event": "noMatch"
+        },
+        {
+          "next": "confirmed_webhook",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to 1",
+              "arguments": [
+                "{{widgets.happy-outgoing.Digits}}"
+              ],
+              "type": "equal_to",
+              "value": "1"
+            }
+          ]
+        },
+        {
+          "next": "cancel_webhook",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to 2",
+              "arguments": [
+                "{{widgets.happy-outgoing.Digits}}"
+              ],
+              "type": "equal_to",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "next": "connect_webhook",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to 0",
+              "arguments": [
+                "{{widgets.happy-outgoing.Digits}}"
+              ],
+              "type": "equal_to",
+              "value": "0"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.happy-outgoing.Digits}}",
+        "offset": {
+          "x": -80,
+          "y": -1080
+        }
+      }
+    },
+    {
+      "name": "call_user_1",
+      "type": "make-outgoing-call-v2",
+      "transitions": [
+        {
+          "next": "detection_machine",
+          "event": "answered"
+        },
+        {
+          "next": "busy_webhook",
+          "event": "busy"
+        },
+        {
+          "next": "no_answer_webhook",
+          "event": "noAnswer"
+        },
+        {
+          "next": "call_failed_webhook",
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "machine_detection_speech_threshold": "1000",
+        "detect_answering_machine": false,
+        "offset": {
+          "x": 260,
+          "y": -1920
+        },
+        "recording_channels": "dual",
+        "timeout": 60,
+        "machine_detection": "Disable",
+        "trim": "do-not-trim",
+        "record": false,
+        "machine_detection_speech_end_threshold": "1000",
+        "machine_detection_timeout": "30",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "machine_detection_silence_timeout": "5000"
+      }
+    },
+    {
+      "name": "confirmed",
+      "type": "say-play",
+      "transitions": [
+        {
+          "event": "audioComplete"
+        }
+      ],
+      "properties": {
+        "voice": "Polly.Amy-Neural",
+        "offset": {
+          "x": -580,
+          "y": -390
+        },
+        "loop": 1,
+        "say": "Your event appoitment has been confirmed. Your confirmation details and hotel location will be sent via WhatsApp and SMS. See you soon at the event.",
+        "language": "en-GB"
+      }
+    },
+    {
+      "name": "cancelled",
+      "type": "say-play",
+      "transitions": [
+        {
+          "event": "audioComplete"
+        }
+      ],
+      "properties": {
+        "voice": "Polly.Amy-Neural",
+        "offset": {
+          "x": 110,
+          "y": -410
+        },
+        "loop": 1,
+        "say": "Your event registration has been cancelled. Thank you for your interest.",
+        "language": "en-GB"
+      }
+    },
+    {
+      "name": "call_start_webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "next": "happy-outgoing",
+          "event": "success"
+        },
+        {
+          "next": "happy-outgoing",
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -970,
+          "y": -1830
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n    \"flow_sid\": \"{{flow.flow_sid}}\",\n    \"execution_sid\": \"{{flow.sid}}\",\n    \"event\": \"initiated\",\n    \"widget_name\": \"call_user_1\",\n    \"to\": \"{{contact.channel.address}}\",\n    \"call_hash\":\"{{flow.variables.call_hash}}\",\n    \"call_status\": \"{{widgets.call_user_1.CallStatus}}\",\n    \"answeredby\": \"{{widgets.call_user_1.AnsweredBy}}\"\n  }",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/status"
+      }
+    },
+    {
+      "name": "busy_webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "event": "success"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 650,
+          "y": -1510
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n    \"flow_sid\": \"{{flow.flow_sid}}\",\n    \"execution_sid\": \"{{flow.sid}}\",\n    \"event\": \"busy\",\n    \"widget_name\": \"call_user_1\",\n    \"to\": \"{{contact.channel.address}}\",\n    \"call_hash\":\"{{flow.variables.call_hash}}\",\n    \"call_status\": \"{{widgets.call_user_1.CallStatus}}\"\n  }",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/status"
+      }
+    },
+    {
+      "name": "no_answer_webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "event": "success"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 980,
+          "y": -1430
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n    \"flow_sid\": \"{{flow.flow_sid}}\",\n    \"execution_sid\": \"{{flow.sid}}\",\n    \"event\": \"no_answer\",\n    \"widget_name\": \"call_user_1\",\n    \"to\": \"{{contact.channel.address}}\",\n    \"call_hash\":\"{{flow.variables.call_hash}}\",\n    \"call_status\": \"{{widgets.call_user_1.CallStatus}}\"\n  }",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/status"
+      }
+    },
+    {
+      "name": "call_failed_webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "event": "success"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 1310,
+          "y": -1380
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n    \"flow_sid\": \"{{flow.flow_sid}}\",\n    \"execution_sid\": \"{{flow.sid}}\",\n    \"event\": \"call_failed\",\n    \"widget_name\": \"call_user_1\",\n    \"to\": \"{{contact.channel.address}}\",\n    \"call_hash\":\"{{flow.variables.call_hash}}\",\n    \"call_status\": \"{{widgets.call_user_1.CallStatus}}\"\n  }",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/status"
+      }
+    },
+    {
+      "name": "main_menu_webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "next": "stage_1",
+          "event": "success"
+        },
+        {
+          "next": "stage_1",
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -810,
+          "y": -1280
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n    \"flow_sid\": \"{{flow.flow_sid}}\",\n    \"execution_sid\": \"{{flow.sid}}\",\n    \"event\": \"dtmf\",\n    \"widget_name\": \"happy-outgoing\",\n    \"digits\": \"{{widgets.happy-outgoing.Digits}}\",\n    \"to\": \"{{contact.channel.address}}\",\n    \"call_hash\":\"{{flow.variables.call_hash}}\"\n  }",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/dtmf"
+      }
+    },
+    {
+      "name": "confirmed_webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "next": "confirmed",
+          "event": "success"
+        },
+        {
+          "next": "confirmed",
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -560,
+          "y": -690
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n  \"flow_sid\": \"{{flow.flow_sid}}\",\n  \"execution_sid\": \"{{flow.sid}}\",\n  \"event\": \"dtmf_action\",\n  \"widget_name\": \"confirmed\",\n  \"action\": \"confirm_appointment\",\n  \"digits\": \"{{widgets.happy-outgoing.Digits}}\",\n  \"to\": \"{{contact.channel.address}}\",\n  \"call_hash\": \"{{flow.variables.call_hash}}\"\n}",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/dtmf"
+      }
+    },
+    {
+      "name": "cancel_webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "next": "cancelled",
+          "event": "success"
+        },
+        {
+          "next": "cancelled",
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 130,
+          "y": -690
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n \"flow_sid\": \"{{flow.flow_sid}}\",\n \"execution_sid\": \"{{flow.sid}}\",\n \"event\": \"dtmf_action\",\n \"widget_name\": \"cancelled\",\n \"action\": \"cancel_appointment\",\n \"digits\": \"{{widgets.happy-outgoing.Digits}}\",\n \"to\": \"{{contact.channel.address}}\",\n \"call_hash\": \"{{flow.variables.call_hash}}\"\n}",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/dtmf"
+      }
+    },
+    {
+      "name": "connect_webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "next": "record_voicemail_1",
+          "event": "success"
+        },
+        {
+          "next": "record_voicemail_1",
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 540,
+          "y": -790
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n \"flow_sid\": \"{{flow.flow_sid}}\",\n \"execution_sid\": \"{{flow.sid}}\",\n \"event\": \"dtmf_action\",\n \"widget_name\": \"connect\",\n \"action\": \"connect_to_representative\",\n \"digits\": \"{{widgets.happy-outgoing.Digits}}\",\n \"to\": \"{{contact.channel.address}}\",\n \"call_hash\": \"{{flow.variables.call_hash}}\"\n}",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/dtmf"
+      }
+    },
+    {
+      "name": "set_variables_1",
+      "type": "set-variables",
+      "transitions": [
+        {
+          "next": "call_user_1",
+          "event": "next"
+        }
+      ],
+      "properties": {
+        "variables": [
+          {
+            "type": "string",
+            "value": "{{flow.sid | replace: '-', ''}}_{{now | date: '%s'}}",
+            "key": "call_hash"
+          },
+          {
+            "type": "string",
+            "value": "https://423c-159-146-51-32.ngrok-free.app",
+            "key": "NGROK_URL"
+          }
+        ],
+        "offset": {
+          "x": 770,
+          "y": -2200
+        }
+      }
+    },
+    {
+      "name": "detection_machine",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "call_start_webhook",
+          "event": "noMatch"
+        },
+        {
+          "next": "call_start_webhook",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to human",
+              "arguments": [
+                "{{widgets.call_user_1.AnsweredBy}}"
+              ],
+              "type": "equal_to",
+              "value": "human"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.call_user_1.AnsweredBy}}",
+        "offset": {
+          "x": -960,
+          "y": -2210
+        }
+      }
+    },
+    {
+      "name": "record_voicemail_1",
+      "type": "record-voicemail",
+      "transitions": [
+        {
+          "event": "recordingComplete"
+        },
+        {
+          "event": "noAudio"
+        },
+        {
+          "event": "hangup"
+        }
+      ],
+      "properties": {
+        "transcribe": false,
+        "offset": {
+          "x": 1290,
+          "y": -650
+        },
+        "trim": "trim-silence",
+        "play_beep": "true",
+        "timeout": 5,
+        "max_length": 3600
+      }
+    }
+  ],
+  "initial_state": "Trigger",
+  "flags": {
+    "allow_concurrent_calls": true
+  }
+}
