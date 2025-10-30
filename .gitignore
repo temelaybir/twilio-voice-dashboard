@@ -28,6 +28,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dokümantasyon (gizli)
+docs/
+
 # Derleme çıktıları
 dist/
 build/
