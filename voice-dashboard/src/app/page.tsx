@@ -360,14 +360,14 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Socket.IO</span>
-                  <Badge variant={isConnected ? "default" : "destructive"}>
-                    {isConnected ? 'Bağlı' : 'Kesildi'}
+                  <Badge variant={isConnected ? "default" : "secondary"} className={isConnected ? "" : "bg-gray-100 text-gray-600"}>
+                    {isConnected ? 'Bağlı' : 'Devre Dışı'}
                   </Badge>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Veritabanı</span>
-                  <Badge variant={historyError ? "destructive" : "default"}>
-                    {historyError ? 'Hata' : 'Aktif'}
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-600">
+                    N/A (Vercel)
                   </Badge>
                 </div>
               </CardContent>

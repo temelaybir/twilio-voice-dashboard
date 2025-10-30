@@ -77,6 +77,16 @@ export function useSocket() {
 
   // Socket bağlantısı kur
   useEffect(() => {
+    // VERCEL LIMITATION: Socket.IO Vercel serverless'te çalışmaz
+    // Production'da Socket.IO devre dışı
+    const isProduction = process.env.NODE_ENV === 'production'
+    
+    if (isProduction) {
+      console.warn('⚠️ Socket.IO production\'da devre dışı (Vercel serverless limitation)')
+      setIsConnected(false)
+      return
+    }
+
     const newSocket = io('http://localhost:3001', {
       transports: ['websocket', 'polling']
     })
