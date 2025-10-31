@@ -1,7 +1,5 @@
 // Gerekli modülleri yükle
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
@@ -40,7 +38,6 @@ try {
 
 // Express uygulaması oluştur
 const app = express();
-const server = http.createServer(app);
 
 // CORS Origins - Development ve Production
 const corsOrigins = [
@@ -60,17 +57,6 @@ if (process.env.NGROK_URL) {
 
 logger.info(`CORS Origins: ${corsOrigins.join(', ')}`);
 
-// Socket.IO kurulumu
-const io = socketIo(server, {
-  cors: {
-    origin: corsOrigins,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: true
-  },
-  path: '/socket.io',
-  transports: ['websocket', 'polling']
-});
-
 // CORS Middleware - Frontend istekleri için
 app.use(cors({
   origin: corsOrigins,
@@ -86,9 +72,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.raw({ type: '*/*' }));
 
-// Ana sayfa route'u
+// Ana sayfa route'u - API Status
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.json({
+    status: 'online',
+    message: 'Twilio Voice API - Çalışıyor',
+    version: '2.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      'POST /api/calls/start': 'Yeni arama başlat',
+      'GET /api/calls/history': 'Arama geçmişini getir',
+      'GET /api/calls/summary': 'Arama özetini getir',
+      'POST /api/calls/webhooks/flow': 'Twilio Flow webhook',
+      'POST /api/calls/webhooks/status': 'Twilio Status webhook',
+      'POST /api/calls/webhooks/dtmf': 'Twilio DTMF webhook'
+    },
+    database: database ? 'connected' : 'not configured',
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // Rotaları yükle
@@ -126,8 +127,8 @@ async function startServer() {
     }
 
     // Server'ı başlat
-    server.listen(config.port, () => {
-      logger.info(`Server running on port ${config.port}`);
+    app.listen(config.port, () => {
+      logger.info(`✅ Server running on port ${config.port}`);
       logger.info(`Environment: ${config.environment}`);
       logger.info(`Webhook Base URL: ${config.webhookBaseUrl}`);
       logger.info('Webhook URLs:');
@@ -144,43 +145,7 @@ async function startServer() {
       }
     });
 
-    server.on('error', (error) => {
-      if (error.syscall !== 'listen') {
-        throw error;
-      }
-      const bind = typeof config.port === 'string'
-        ? 'Pipe ' + config.port
-        : 'Port ' + config.port;
-
-      // handle specific listen errors with friendly messages
-      switch (error.code) {
-        case 'EACCES':
-          logger.error(bind + ' requires elevated privileges');
-          process.exit(1);
-          break;
-        case 'EADDRINUSE':
-          logger.error(bind + ' is already in use');
-          process.exit(1);
-          break;
-        default:
-          throw error;
-      }
-    });
-
-    // Socket.IO event'lerini ayarla
-    io.on('connection', (socket) => {
-      logger.info(`Client connected: ${socket.id}`);
-      
-      // Açık bağlantı sayısını kontrol et
-      logger.info(`Aktif bağlantı sayısı: ${io.engine.clientsCount}`);
-      
-      socket.on('disconnect', () => {
-        logger.info(`Client disconnected: ${socket.id}`);
-      });
-    });
-
-    // Global olarak Socket.IO nesnesini export et
-    global.io = io;
+    // Global config'i export et
     global.config = config;
 
   } catch (error) {

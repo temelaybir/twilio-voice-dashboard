@@ -3,136 +3,272 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Twilio Çağrı Paneli</title>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <title>Twilio Voice API</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f4f7f6; display: flex; justify-content: center; align-items: flex-start; padding-top: 40px; }
-        .container { width: 100%; max-width: 800px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
-        .header { background-color: #001f44; color: white; padding: 20px; text-align: center; }
-        .header h1 { margin: 0; font-size: 24px; }
-        .content { padding: 20px; }
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
-        #phoneNumber { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
-        #callButton { padding: 10px 20px; border: none; background-color: #f22f46; color: white; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; }
-        #callButton:hover { background-color: #d71a30; }
-        #callButton:disabled { background-color: #ccc; cursor: not-allowed; }
-        #logsContainer { background-color: #2d3748; color: #f7fafc; padding: 15px; border-radius: 4px; height: 500px; overflow-y: auto; font-family: "Courier New", Courier, monospace; font-size: 14px; white-space: pre-wrap; }
-        .log-entry { padding: 5px 0; border-bottom: 1px solid #4a5568; }
-        .log-entry:last-child { border-bottom: none; }
-        .log-info { color: #48bb78; }
-        .log-error { color: #f56565; }
-        .log-warn { color: #ecc94b; }
-        .log-dtmf { color: #4299e1; }
-        .log-status { color: #9f7aea; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .logo {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #2d3748;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #718096;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: #f0fff4;
+            color: #22543d;
+            padding: 12px 24px;
+            border-radius: 50px;
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #48bb78;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .info {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: #718096;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            color: #2d3748;
+            font-family: "Courier New", monospace;
+            font-size: 14px;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 5px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .endpoints {
+            text-align: left;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 12px;
+        }
+        
+        .endpoints h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .endpoint {
+            padding: 10px;
+            margin: 8px 0;
+            background: white;
+            border-radius: 8px;
+            font-size: 13px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-right: 8px;
+            font-size: 11px;
+        }
+        
+        .method.post {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .method.get {
+            background: #4299e1;
+            color: white;
+        }
+        
+        .path {
+            color: #4a5568;
+            font-family: "Courier New", monospace;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            color: #a0aec0;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="header">
-        <h1>Twilio Çağrı Kontrol Paneli</h1>
+    <div class="logo">📞</div>
+    <h1>Twilio Voice API</h1>
+    <p class="subtitle">Backend Servisi Çalışıyor</p>
+    
+    <div class="status">
+        <span class="status-dot"></span>
+        <span id="statusText">Durum kontrol ediliyor...</span>
     </div>
-    <div class="content">
-        <div class="controls">
-            <input type="tel" id="phoneNumber" placeholder="+905551234567">
-            <button id="callButton">📞 Ara</button>
+    
+    <div class="info" id="apiInfo" style="display: none;">
+        <div class="info-item">
+            <span class="info-label">Versiyon</span>
+            <span class="info-value" id="version">-</span>
         </div>
-        <div id="logsContainer"></div>
+        <div class="info-item">
+            <span class="info-label">Environment</span>
+            <span class="info-value" id="environment">-</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Database</span>
+            <span class="info-value" id="database">-</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Timestamp</span>
+            <span class="info-value" id="timestamp">-</span>
+        </div>
+    </div>
+    
+    <div class="endpoints" id="endpoints" style="display: none;">
+        <h3>📍 API Endpoints</h3>
+        <div id="endpointsList"></div>
+    </div>
+    
+    <div style="margin-top: 30px;">
+        <a href="/api/calls/history" class="btn">📊 Arama Geçmişi</a>
+        <a href="/api/calls/summary" class="btn btn-secondary">📈 Arama Özeti</a>
+    </div>
+    
+    <div class="footer">
+        Twilio Voice Dashboard v2.0 - MySQL Edition
     </div>
 </div>
 
 <script>
-    const phoneNumberInput = document.getElementById('phoneNumber');
-    const callButton = document.getElementById('callButton');
-    const logsContainer = document.getElementById('logsContainer');
-
-    function addLog(message, type = 'info') {
-        const logEntry = document.createElement('div');
-        logEntry.className = `log-entry log-${type}`;
-        
-        const timestamp = new Date().toLocaleTimeString();
-        let formattedMessage = `[${timestamp}] `;
-        
-        if (typeof message === 'object') {
-            formattedMessage += JSON.stringify(message, null, 2);
-        } else {
-            formattedMessage += message;
-        }
-        
-        logEntry.textContent = formattedMessage;
-        logsContainer.appendChild(logEntry);
-        logsContainer.scrollTop = logsContainer.scrollHeight;
-    }
-
-    // Socket.IO Bağlantısı
-    addLog('Socket.IO sunucusuna bağlanılıyor...', 'info');
-    const socket = io({
-        transports: ['websocket', 'polling']
-    });
-
-    socket.on('connect', () => {
-        addLog('Socket.IO bağlantısı başarılı!', 'info');
-    });
-
-    socket.on('connect_error', (error) => {
-        addLog(`Socket.IO bağlantı hatası: ${error.message}`, 'error');
-    });
-
-    socket.on('disconnect', () => {
-        addLog('Socket.IO bağlantısı kesildi.', 'warn');
-    });
-
-    // Gelen Event'leri dinle
-    const eventsToLog = ['statusUpdate', 'dtmfUpdate', 'flowUpdate', 'bulkCallProgress', 'bulkCallComplete'];
-    eventsToLog.forEach(event => {
-        socket.on(event, (data) => {
-            let type = 'status';
-            if(event.includes('dtmf')) type = 'dtmf';
-            if(event.includes('error')) type = 'error';
-
-            addLog(`Gelen Event: ${event}`, type);
-            addLog(data, type);
-        });
-    });
-
-    // Çağrı Başlatma
-    callButton.addEventListener('click', async () => {
-        const phoneNumber = phoneNumberInput.value;
-        if (!phoneNumber) {
-            addLog('Lütfen geçerli bir telefon numarası girin.', 'error');
-            return;
-        }
-
-        addLog(`Çağrı başlatılıyor: ${phoneNumber}`, 'info');
-        callButton.disabled = true;
-        callButton.textContent = 'Aranıyor...';
-
+    // API durumunu kontrol et
+    async function checkStatus() {
         try {
-            const response = await fetch('/api/calls/start', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ to: phoneNumber })
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || `HTTP error! status: ${response.status}`);
+            const response = await fetch('/');
+            const data = await response.json();
+            
+            // Durum bilgisini güncelle
+            document.getElementById('statusText').textContent = data.message || 'API Çalışıyor';
+            
+            // API bilgilerini göster
+            document.getElementById('apiInfo').style.display = 'block';
+            document.getElementById('version').textContent = data.version || '-';
+            document.getElementById('environment').textContent = data.environment || '-';
+            document.getElementById('database').textContent = data.database || '-';
+            document.getElementById('timestamp').textContent = new Date(data.timestamp).toLocaleString('tr-TR');
+            
+            // Endpoints'leri listele
+            if (data.endpoints) {
+                const endpointsDiv = document.getElementById('endpoints');
+                const listDiv = document.getElementById('endpointsList');
+                endpointsDiv.style.display = 'block';
+                
+                Object.entries(data.endpoints).forEach(([endpoint, description]) => {
+                    const [method, path] = endpoint.split(' ');
+                    const div = document.createElement('div');
+                    div.className = 'endpoint';
+                    div.innerHTML = `
+                        <span class="method ${method.toLowerCase()}">${method}</span>
+                        <span class="path">${path}</span>
+                        <div style="margin-top: 5px; color: #718096; font-size: 12px;">${description}</div>
+                    `;
+                    listDiv.appendChild(div);
+                });
             }
-
-            addLog('Çağrı başlatma isteği başarılı.', 'info');
-            addLog(result, 'info');
-
+            
         } catch (error) {
-            addLog(`Çağrı başlatma hatası: ${error.message}`, 'error');
-        } finally {
-            callButton.disabled = false;
-            callButton.textContent = '📞 Ara';
+            document.getElementById('statusText').textContent = 'API Bağlantı Hatası';
+            console.error('API status check failed:', error);
         }
-    });
-
+    }
+    
+    // Sayfa yüklendiğinde durumu kontrol et
+    checkStatus();
 </script>
+
 </body>
-</html> 
+</html>

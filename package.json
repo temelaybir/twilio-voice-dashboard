@@ -1,7 +1,7 @@
 {
   "name": "twilio-voice-dashboard",
-  "version": "1.0.0",
-  "description": "Twilio Voice Dashboard with Socket.IO",
+  "version": "2.0.0",
+  "description": "Twilio Voice Dashboard with MySQL",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -15,7 +15,8 @@
     "twilio",
     "voice",
     "dashboard",
-    "socket.io"
+    "mysql",
+    "vercel"
   ],
   "author": "",
   "license": "ISC",
@@ -28,7 +29,7 @@
     "lodash": "^4.17.21",
     "nodemailer": "^6.9.0",
     "reflect-metadata": "^0.2.1",
-    "socket.io": "^4.7.2",
+    "mysql2": "^3.11.0",
     "sqlite3": "^5.1.7",
     "twilio": "^4.19.0",
     "typeorm": "^0.3.21",

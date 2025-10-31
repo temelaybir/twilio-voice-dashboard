@@ -9,10 +9,45 @@ const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL
 
 let AppDataSource = null;
 
-// SQLite sadece local development için
-if (!isProduction) {
+// MySQL configuration için gerekli değişkenler
+const hasMySQL = process.env.DB_HOST && 
+                 process.env.DB_USER && 
+                 process.env.DB_NAME;
+
+// Production veya MySQL varsa MySQL kullan
+if (hasMySQL) {
   try {
-    // Veritabanı dizinini oluştur (sadece local'de)
+    logger.info('MySQL bağlantısı yapılandırılıyor...');
+    
+    AppDataSource = new DataSource({
+      type: 'mysql',
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT || '3306'),
+      username: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      entities: [path.join(__dirname, '../models/*.js')],
+      synchronize: true, // Production'da false yapın ve migration kullanın
+      logging: process.env.DB_LOGGING === 'true',
+      charset: 'utf8mb4',
+      timezone: '+00:00',
+      // Vercel MySQL için gerekli ayarlar
+      extra: {
+        connectionLimit: 5,
+      }
+    });
+    
+    logger.info(`MySQL bağlantı ayarları: ${process.env.DB_USER}@${process.env.DB_HOST}:${process.env.DB_PORT || '3306'}/${process.env.DB_NAME}`);
+  } catch (error) {
+    logger.error('MySQL Database başlatma hatası:', error.message);
+  }
+} 
+// Local development için SQLite
+else if (!isProduction) {
+  try {
+    logger.info('SQLite kullanılıyor (local development)...');
+    
+    // Veritabanı dizinini oluştur
     const dataDir = path.join(__dirname, '../data');
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
@@ -27,26 +62,44 @@ if (!isProduction) {
       logging: false,
     });
   } catch (error) {
-    logger.warn('Database başlatılamadı:', error.message);
+    logger.warn('SQLite başlatılamadı:', error.message);
   }
 } else {
-  logger.info('Production mode: SQLite devre dışı (Vercel serverless)');
+  logger.warn('Database yapılandırılmadı - MySQL bilgilerini .env dosyasına ekleyin');
 }
 
 // Veritabanını başlat
 async function initializeDatabase() {
-  // Production'da database yok
-  if (isProduction || !AppDataSource) {
-    logger.info('Database başlatma atlanıyor (production/serverless mode)');
+  if (!AppDataSource) {
+    logger.warn('Database yapılandırılmamış - başlatma atlanıyor');
     return false;
   }
 
   try {
     await AppDataSource.initialize();
-    logger.info('Veritabanı bağlantısı başarıyla kuruldu');
+    
+    if (hasMySQL) {
+      logger.info('✅ MySQL veritabanı bağlantısı başarıyla kuruldu');
+    } else {
+      logger.info('✅ SQLite veritabanı bağlantısı başarıyla kuruldu');
+    }
+    
     return true;
   } catch (error) {
-    logger.error('Veritabanı başlatma hatası:', { error });
+    logger.error('❌ Veritabanı başlatma hatası:', { 
+      error: error.message,
+      code: error.code 
+    });
+    
+    // MySQL bağlantı hataları için özel mesajlar
+    if (error.code === 'ENOTFOUND') {
+      logger.error('MySQL host bulunamadı. DB_HOST değişkenini kontrol edin.');
+    } else if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+      logger.error('MySQL erişim reddedildi. Kullanıcı adı/şifre kontrol edin.');
+    } else if (error.code === 'ER_BAD_DB_ERROR') {
+      logger.error('MySQL veritabanı bulunamadı. DB_NAME değişkenini kontrol edin.');
+    }
+    
     return false;
   }
 }

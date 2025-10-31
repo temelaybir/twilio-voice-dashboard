@@ -1,22 +1,26 @@
-# Twilio Voice Dashboard
+# Twilio Voice Dashboard v2.0
 
-Bu proje, Twilio Voice API kullanarak çağrı yönetimi ve izleme için bir dashboard uygulamasıdır. Socket.IO ile gerçek zamanlı güncellemeler sağlar ve modern Next.js tabanlı bir web arayüzü içerir.
+Bu proje, Twilio Voice API kullanarak çağrı yönetimi ve izleme için bir dashboard uygulamasıdır. MySQL database desteği ile Vercel ve diğer serverless platformlarda çalışmak üzere optimize edilmiştir.
+
+## 🎉 Yeni Versiyon 2.0
+
+⚠️ **Önemli**: v2.0'da Socket.IO kaldırılmıştır. Sistem artık REST API tabanlıdır ve Vercel serverless fonksiyonları ile tam uyumludur.
 
 ## Özellikler
 
 ### Backend
 - Twilio Studio Flow ile çağrı yönetimi
-- Socket.IO ile gerçek zamanlı çağrı durumu güncellemeleri
+- REST API ile çağrı durumu güncellemeleri
 - DTMF tuş basımlarının izlenmesi
-- SQLite veritabanı ile çağrı geçmişi
+- **Dual Database**: MySQL (Production) + SQLite (Development)
 - Toplu çağrı desteği (10 numarayı aynı anda)
-- Ngrok ile yerel geliştirme ortamında webhook desteği
+- Vercel serverless ile tam uyumluluk
+- Plesk/cPanel MySQL entegrasyonu
 
 ### Frontend Dashboard
-- **Gerçek Zamanlı İzleme**: Socket.IO ile anlık çağrı durumu güncellemeleri
 - **Modern UI/UX**: Next.js 14, Tailwind CSS, Shadcn/ui ile geliştirildi
 - **Toplu Arama**: 10 numarayı aynı anda arama desteği
-- **DTMF Etkileşim**: Kullanıcı tuş basımlarının gerçek zamanlı takibi
+- **DTMF Etkileşim**: Kullanıcı tuş basımlarının takibi
 - **Responsive Tasarım**: Mobil ve masaüstü uyumlu
 - **İstatistikler**: Detaylı çağrı analitiği ve metrikleri
 
@@ -69,14 +73,31 @@ Bu proje, Twilio Voice API kullanarak çağrı yönetimi ve izleme için bir das
    cd ..
    ```
 
-4. `.env` dosyasını oluşturun:
+4. `.env` dosyasını oluşturun (env.example'dan kopyalayın):
+   ```bash
+   cp env.example .env
+   ```
+   
+   Ardından `.env` dosyasını düzenleyin:
    ```env
+   # Twilio Configuration
    TWILIO_ACCOUNT_SID=your_account_sid
    TWILIO_AUTH_TOKEN=your_auth_token
    TWILIO_PHONE_NUMBER=your_phone_number
    TWILIO_FLOW_SID=your_flow_sid
-   NGROK_URL=your_ngrok_url
+   
+   # Server Configuration
    PORT=3001
+   NGROK_URL=your_ngrok_url  # Development için
+   WEBHOOK_BASE_URL=          # Production için
+   
+   # MySQL Database (Production - Opsiyonel)
+   # Local development için boş bırakın, SQLite kullanılacak
+   DB_HOST=your-mysql-host.com
+   DB_PORT=3306
+   DB_USER=your_database_user
+   DB_PASSWORD=your_database_password
+   DB_NAME=your_database_name
    ```
 
 ## 🚀 Hızlı Başlangıç
@@ -336,10 +357,17 @@ npm run report
 - 🔒 Güvenlik iyileştirmeleri
 - 📚 Kapsamlı dokümantasyon
 
+### v2.0.0 - 2024-10-31
+- 🚀 Socket.IO kaldırıldı (Vercel serverless uyumluluğu)
+- 🗄️ MySQL database desteği eklendi
+- 📦 Dual database modu (MySQL/SQLite)
+- 🎨 Yeni API status sayfası
+- ⚡ REST API optimizasyonu
+- 🔒 Geliştirilmiş güvenlik
+
 ### v1.0.0 - 2024
 - 🎉 İlk sürüm
 - 📞 Twilio Voice entegrasyonu
-- 🔄 Real-time Socket.IO updates
 - 📊 Dashboard UI
 
 ## 📄 Lisans
@@ -350,7 +378,8 @@ ISC
 
 - [Twilio](https://www.twilio.com/) - Voice API
 - [Next.js](https://nextjs.org/) - React Framework
-- [Socket.IO](https://socket.io/) - Real-time engine
+- [TypeORM](https://typeorm.io/) - Database ORM
+- [MySQL](https://www.mysql.com/) - Database
 - [Shadcn/ui](https://ui.shadcn.com/) - UI Components
 
 ---

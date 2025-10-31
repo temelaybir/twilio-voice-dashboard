@@ -280,28 +280,9 @@ router.post('/start-bulk', async (req, res) => {
         logger.info(`Toplu çağrı başarıyla başlatıldı (${phoneNumber}):`, { executionSid: execution.sid });
         results.push({ to: phoneNumber, execution_sid: execution.sid });
         
-        // Socket.IO ile anlık bildirim gönder
-        if (global.io) {
-          global.io.emit('bulkCallProgress', {
-            type: 'success',
-            to: phoneNumber,
-            execution_sid: execution.sid
-          });
-        }
-        
       } catch (err) {
         logger.error(`Toplu çağrı hatası (${phoneNumber}):`, { message: err.message, code: err.code });
         errors.push({ to: phoneNumber, error: err.message, code: err.code });
-        
-        // Socket.IO ile anlık bildirim gönder
-        if (global.io) {
-          global.io.emit('bulkCallProgress', {
-            type: 'error',
-            to: phoneNumber,
-            error: err.message,
-            code: err.code
-          });
-        }
       }
     };
 
@@ -310,16 +291,6 @@ router.post('/start-bulk', async (req, res) => {
     for (let i = 0; i < phoneNumbers.length; i++) {
       // Konsola ilerleme bilgisi
       logger.info(`Çağrı kuyruğa eklendi (${i+1}/${phoneNumbers.length}): ${phoneNumbers[i]}`);
-      
-      // Socket.IO ile ilerleme bildirimi gönder
-      if (global.io) {
-        global.io.emit('bulkCallProgress', {
-          total: phoneNumbers.length,
-          current: i+1,
-          status: 'queued',
-          phoneNumber: phoneNumbers[i]
-        });
-      }
     }
     
     // Çağrıları başlatma işlemini başlat (uzun sürebilir)
@@ -340,19 +311,6 @@ router.post('/start-bulk', async (req, res) => {
         başarılı: results.length,
         başarısız: errors.length
       });
-      
-      // Socket.IO ile tamamlandı bildirimi gönder
-      if (global.io) {
-        const socketData = {
-          total: phoneNumbers.length,
-          success: results.length,
-          failed: errors.length,
-          results,
-          errors
-        };
-        logger.info('Socket.IO ile toplu çağrı tamamlama bildirimi gönderiliyor:', { socketData });
-        global.io.emit('bulkCallComplete', socketData);
-      }
     });
     
   } catch (error) {
@@ -383,12 +341,6 @@ router.post('/webhooks/flow', async (req, res) => {
     // Event history'ye kaydet
     await saveEventHistory('flow', req.body);
     
-    // Socket.IO event'i gönder
-    if (global.io) {
-      logger.info('Socket.IO ile "flowUpdate" event\'i gönderiliyor');
-      global.io.volatile.emit('flowUpdate', req.body);
-    }
-    
     res.sendStatus(200);
   } catch (error) {
     logger.error('Flow webhook hatası:', { error });
@@ -414,46 +366,17 @@ router.post('/webhooks/status', async (req, res) => {
   if (executionSid) {
     logger.debug(`Status webhook için executionSid: ${executionSid}, CallStatus: ${callStatus}, DialCallStatus: ${dialCallStatus}`);
     
-    // Çağrı reddedildiğinde socket ile bilgilendir
+    // Çağrı durumunu logla
     if (callStatus === 'completed' || 
         dialCallStatus === 'busy' || 
         dialCallStatus === 'canceled' || 
         dialCallStatus === 'no-answer') {
       // Çağrı reddine özel durum bildirimi
       const rejectStatus = dialCallStatus || 'canceled';
-      
-      // Socket.io ile durumu ilet
-      if (global.io) {
-        const socketData = {
-          execution_sid: executionSid,
-          event: rejectStatus,
-          CallStatus: callStatus,
-          DialCallStatus: dialCallStatus,
-          To: req.body.To,
-          timestamp: new Date().toISOString()
-        };
-        logger.info(`Socket.io ile reddedilen çağrı bilgisi gönderiliyor: ${executionSid}, durum: ${rejectStatus}`);
-        global.io.emit('statusUpdate', socketData);
-      } else {
-        logger.error('Socket.io bağlantısı yok! (io objesi bulunmuyor)');
-      }
-      
       logger.info(`Çağrı reddedildi: ${executionSid}, durum: ${rejectStatus}`);
     } else {
       // Normal durum güncellemesi
-      if (global.io) {
-        const socketData = {
-          execution_sid: executionSid,
-          CallStatus: callStatus,
-          DialCallStatus: dialCallStatus,
-          To: req.body.To,
-          timestamp: new Date().toISOString()
-        };
-        logger.info(`Socket.io ile normal durum güncellemesi gönderiliyor: ${executionSid}`);
-        global.io.emit('statusUpdate', socketData);
-      } else {
-        logger.error('Socket.io bağlantısı yok! (io objesi bulunmuyor)');
-      }
+      logger.info(`Çağrı durumu güncellendi: ${executionSid}, durum: ${callStatus}`);
     }
   } else {
     logger.warn('Status webhook geçersiz executionSid ile alındı:', { body: req.body });
@@ -488,26 +411,13 @@ router.post('/webhooks/dtmf', async (req, res) => {
     
     // Sadece aksiyon varsa veya normal tuşlama olayıysa işlem yap
     if (hasAction || eventType === 'dtmf') {
-      // Socket.IO event'i hazırlıkları
       dtmfData.is_action = hasAction;
       dtmfData.timestamp = Date.now();
+      logger.info('DTMF event alındı:', dtmfData);
       
-      // İstemcilere doğrudan gönder ve cevap bekleme
-      if (global.io) {
-        logger.info('Socket.IO ile "dtmfUpdate" event\'i gönderiliyor');
-        global.io.volatile.emit('dtmfUpdate', dtmfData);
-        
-        // Eğer bu bir aksiyon tuşlamasıysa, aynı zamanda bir durum güncellemesi olarak da gönder
-        if (hasAction && dtmfData.action) {
-          const statusData = {
-            ...dtmfData,
-            event: dtmfData.action, // action'ı event olarak ayarla
-            timestamp: Date.now()
-          };
-          
-          logger.info('Socket.IO ile "statusUpdate" (aksiyon) event\'i gönderiliyor');
-          global.io.volatile.emit('statusUpdate', statusData);
-        }
+      // Eğer bu bir aksiyon tuşlamasıysa, durumu logla
+      if (hasAction && dtmfData.action) {
+        logger.info('DTMF aksiyon alındı:', dtmfData.action);
       }
     }
     
