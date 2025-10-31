@@ -2,12 +2,13 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
-import { RefreshCw, Phone, PhoneCall, History, Settings, Activity, FileText } from 'lucide-react'
+import { RefreshCw, Phone, PhoneCall, History, Settings, Activity, FileText, LogOut } from 'lucide-react'
 
 import { startCall, startBulkCall, getAllCallHistoryForExport } from '@/lib/api'
 import { useSocket } from '@/hooks/use-socket'
@@ -20,6 +21,7 @@ import { CallHistoryTable } from '@/components/call/call-history-table'
 import { CallDetailModal } from '@/components/call/call-detail-modal'
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [phoneNumber, setPhoneNumber] = useState('')
   const [bulkNumbers, setBulkNumbers] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -154,6 +156,16 @@ export default function DashboardPage() {
     loadEventHistory()
   }
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/login', { method: 'DELETE' })
+      router.push('/login')
+      router.refresh()
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+  }
+
   const handleExportAll = async () => {
     try {
       setMessage('📥 Tüm kayıtlar dışa aktarılıyor...')
@@ -233,6 +245,17 @@ export default function DashboardPage() {
                 </Button>
               </Link>
             </div>
+
+            {/* Logout Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <LogOut className="h-4 w-4" />
+              Çıkış
+            </Button>
           </div>
         </div>
       </header>
