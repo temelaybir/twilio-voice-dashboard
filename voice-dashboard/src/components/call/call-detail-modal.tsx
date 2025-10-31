@@ -231,7 +231,14 @@ export function CallDetailModal({ executionSid, open, onOpenChange }: CallDetail
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {format(new Date(event.timestamp), 'HH:mm:ss', { locale: tr })}
+                            {(() => {
+                              try {
+                                const date = new Date(event.timestamp)
+                                return isNaN(date.getTime()) ? 'Geçersiz tarih' : format(date, 'HH:mm:ss', { locale: tr })
+                              } catch {
+                                return 'Geçersiz tarih'
+                              }
+                            })()}
                           </div>
                         </div>
                         

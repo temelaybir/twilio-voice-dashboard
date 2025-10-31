@@ -30,8 +30,26 @@ export function convertToCSV(calls: CallHistoryItem[]): string {
       .join('; ')
     
     const dtmfDetails = call.dtmfActions
-      .map(dtmf => `${dtmf.digits} (${format(new Date(dtmf.timestamp), 'dd.MM.yyyy HH:mm', { locale: tr })})`)
+      .map(dtmf => {
+        try {
+          const date = new Date(dtmf.timestamp)
+          return isNaN(date.getTime()) 
+            ? `${dtmf.digits} (Geçersiz tarih)` 
+            : `${dtmf.digits} (${format(date, 'dd.MM.yyyy HH:mm', { locale: tr })})`
+        } catch {
+          return `${dtmf.digits} (Geçersiz tarih)`
+        }
+      })
       .join('; ')
+
+    const formatSafeDate = (timestamp: any) => {
+      try {
+        const date = new Date(timestamp)
+        return isNaN(date.getTime()) ? 'Geçersiz tarih' : format(date, 'dd.MM.yyyy HH:mm:ss', { locale: tr })
+      } catch {
+        return 'Geçersiz tarih'
+      }
+    }
 
     return [
       call.executionSid,
@@ -39,8 +57,8 @@ export function convertToCSV(calls: CallHistoryItem[]): string {
       call.to,
       call.from || '',
       getStatusLabel(call.status),
-      format(new Date(call.createdAt), 'dd.MM.yyyy HH:mm:ss', { locale: tr }),
-      format(new Date(call.lastActivity), 'dd.MM.yyyy HH:mm:ss', { locale: tr }),
+      formatSafeDate(call.createdAt),
+      formatSafeDate(call.lastActivity),
       dtmfActions || 'Etkileşim yok',
       dtmfDetails || '-',
       call.events.length.toString()

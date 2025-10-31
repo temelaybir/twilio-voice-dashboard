@@ -39,12 +39,17 @@ export function SummaryCallsTable({ calls, date, loading = false }: SummaryCalls
 
   // Tarihi formatla
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleTimeString('tr-TR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return 'Geçersiz tarih'
+      return date.toLocaleTimeString('tr-TR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    } catch {
+      return 'Geçersiz tarih'
+    }
   }
 
   // Süreyi formatla
