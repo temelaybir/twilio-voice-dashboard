@@ -272,15 +272,28 @@ async function sendEmail(htmlContent, date) {
   try {
     console.log('📧 Email gönderiliyor...');
     
+    // Şifre ve kullanıcı adını temizle (başta/sonda boşluk varsa)
+    const cleanUser = CONFIG.email.auth.user ? CONFIG.email.auth.user.trim() : '';
+    const cleanPassword = CONFIG.email.auth.pass ? CONFIG.email.auth.pass.trim() : '';
+    
     // Nodemailer transporter oluştur
+    // server.plante.biz için özel ayarlar
     const transporter = nodemailer.createTransport({
       host: CONFIG.email.host,
       port: CONFIG.email.port,
-      secure: CONFIG.email.secure,
-      auth: CONFIG.email.auth,
+      secure: CONFIG.email.secure, // false for 587, true for 465
+      requireTLS: !CONFIG.email.secure, // Port 587 için TLS gerektir (secure false ise)
+      auth: {
+        user: cleanUser,
+        pass: cleanPassword
+      },
       tls: {
-        rejectUnauthorized: false // Self-signed certificate için
-      }
+        rejectUnauthorized: false, // Self-signed certificate için
+        minVersion: 'TLSv1' // Minimum TLS versiyonu
+      },
+      connectionTimeout: 30000, // 30 saniye timeout
+      greetingTimeout: 30000,
+      socketTimeout: 30000
     });
     
     // Email ayarları
@@ -288,7 +301,7 @@ async function sendEmail(htmlContent, date) {
     const recipients = CONFIG.email.to ? CONFIG.email.to.split(',').map(email => email.trim()) : [];
     
     const mailOptions = {
-      from: `"${CONFIG.clinicName} - Çağrı Raporu" <${CONFIG.email.from}>`,
+      from: `"${CONFIG.clinicName} - Polonya Çağrı Raporu" <${CONFIG.email.from}>`,
       to: recipients.join(', '), // Birden fazla alıcıyı düzgün formatla
       subject: `📊 Günlük Çağrı Özeti - ${date} - ${CONFIG.clinicName}`,
       html: htmlContent,
