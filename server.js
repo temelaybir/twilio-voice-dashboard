@@ -75,19 +75,8 @@ app.use(bodyParser.raw({ type: '*/*' }));
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
-    message: 'Twilio Voice API - Çalışıyor',
-    version: '2.0.0',
-    timestamp: new Date().toISOString(),
-    endpoints: {
-      'POST /api/calls/start': 'Yeni arama başlat',
-      'GET /api/calls/history': 'Arama geçmişini getir',
-      'GET /api/calls/summary': 'Arama özetini getir',
-      'POST /api/calls/webhooks/flow': 'Twilio Flow webhook',
-      'POST /api/calls/webhooks/status': 'Twilio Status webhook',
-      'POST /api/calls/webhooks/dtmf': 'Twilio DTMF webhook'
-    },
-    database: database ? 'connected' : 'not configured',
-    environment: process.env.NODE_ENV || 'development'
+    message: 'Twilio Voice API Service',
+    version: '2.0.0'
   });
 });
 
