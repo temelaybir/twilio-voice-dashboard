@@ -278,6 +278,9 @@ async function sendEmail(htmlContent, date) {
       port: CONFIG.email.port,
       secure: CONFIG.email.secure,
       auth: CONFIG.email.auth,
+      tls: {
+        rejectUnauthorized: false // Self-signed certificate için
+      }
     });
     
     // Email ayarları
