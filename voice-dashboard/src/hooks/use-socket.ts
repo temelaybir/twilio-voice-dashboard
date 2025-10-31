@@ -51,7 +51,7 @@ export function useSocket(): UseSocketReturn {
           setEvents(parsedEvents)
           lastEventCountRef.current = parsedEvents.length
         } catch (error) {
-          console.error('Event parsing error:', error)
+          // Silent error handling
         }
       }
       setIsHydrated(true)
@@ -62,18 +62,10 @@ export function useSocket(): UseSocketReturn {
   const loadEventHistory = useCallback(async () => {
     try {
       setIsPolling(true)
-      console.log('📡 Database\'den event geçmişi yükleniyor...')
       const response = await getEventHistory()
       
       if (response.success && response.data) {
         const newEventCount = response.data.length
-        console.log(`✅ ${newEventCount} event veritabanından yüklendi`)
-        
-        // Yeni event varsa bildirim
-        if (lastEventCountRef.current > 0 && newEventCount > lastEventCountRef.current) {
-          const newEventsCount = newEventCount - lastEventCountRef.current
-          console.log(`🔔 ${newEventsCount} yeni event alındı!`)
-        }
         
         lastEventCountRef.current = newEventCount
         setEvents(response.data)
@@ -85,11 +77,9 @@ export function useSocket(): UseSocketReturn {
           localStorage.setItem('twilio-events', JSON.stringify(response.data))
         }
       } else {
-        console.error('❌ Event geçmişi yüklenemedi:', response.error)
         setIsConnected(false)
       }
     } catch (error) {
-      console.error('❌ Event geçmişi yükleme hatası:', error)
       setIsConnected(false)
     } finally {
       setIsPolling(false)
@@ -125,7 +115,6 @@ export function useSocket(): UseSocketReturn {
         const data = await response.json()
         if (data.status === 'online') {
           setIsConnected(true)
-          console.log('✅ Backend API bağlantısı aktif')
         } else {
           setIsConnected(false)
         }
@@ -133,7 +122,6 @@ export function useSocket(): UseSocketReturn {
         setIsConnected(false)
       }
     } catch (error) {
-      console.error('❌ Backend bağlantı kontrolü başarısız:', error)
       setIsConnected(false)
     }
   }, [])
@@ -157,13 +145,10 @@ export function useSocket(): UseSocketReturn {
       checkConnection()
     }, CONNECTION_CHECK_INTERVAL)
 
-    console.log(`🔄 Auto-refresh başlatıldı (${POLLING_INTERVAL/1000}s aralıkla)`)
-
     // Cleanup
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current)
-        console.log('🛑 Auto-refresh durduruldu')
       }
       if (connectionCheckRef.current) {
         clearInterval(connectionCheckRef.current)

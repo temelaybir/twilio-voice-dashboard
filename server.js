@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const morgan = require('morgan');
 const logger = require('./config/logger');
+const cron = require('node-cron');
+const { exec } = require('child_process');
 
 // Çevre değişkenlerini yükle (en başta)
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -140,6 +142,58 @@ async function startServer() {
 
     // Global config'i export et
     global.config = config;
+
+    // Günlük Email Raporu Scheduler - Türkiye saati ile 23:59'da
+    // node-cron timezone desteği ile Türkiye saati (Europe/Istanbul)
+    if (process.env.ENABLE_DAILY_EMAIL !== 'false') {
+      cron.schedule('59 23 * * *', () => {
+        logger.info('📧 Günlük email raporu gönderiliyor (Türkiye saati: 23:59)...');
+        
+        // Türkiye saatine göre bugünün tarihini al
+        // 23:59'da o günün raporunu gönder
+        const now = new Date();
+        // Türkiye saati için format (YYYY-MM-DD)
+        const turkiyeDateStr = now.toLocaleDateString('en-CA', { 
+          timeZone: 'Europe/Istanbul',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+        // en-CA formatı zaten YYYY-MM-DD formatında döner
+        const targetDate = turkiyeDateStr;
+        
+        logger.info(`📅 Rapor tarihi: ${targetDate} (Türkiye saati)`);
+        
+        // Script'i çalıştır
+        const scriptPath = path.join(__dirname, 'scripts', 'daily-email-report.js');
+        const command = `node "${scriptPath}" --date=${targetDate}`;
+        
+        exec(command, { 
+          cwd: __dirname, // Script'in çalışma dizini
+          env: process.env // Environment variables'ı geçir
+        }, (error, stdout, stderr) => {
+          if (error) {
+            logger.error('❌ Günlük email raporu hatası:', { 
+              error: error.message,
+              stderr: stderr 
+            });
+            return;
+          }
+          
+          logger.info('✅ Günlük email raporu başarıyla gönderildi');
+          if (stdout) {
+            logger.info('📧 Email script çıktısı:', stdout);
+          }
+        });
+      }, {
+        timezone: 'Europe/Istanbul' // Türkiye saati
+      });
+      
+      logger.info('⏰ Günlük email raporu scheduler aktif - Her gün 23:59 (Türkiye saati)');
+      logger.info('   Raporu devre dışı bırakmak için: ENABLE_DAILY_EMAIL=false');
+    } else {
+      logger.info('⏰ Günlük email raporu scheduler devre dışı (ENABLE_DAILY_EMAIL=false)');
+    }
 
   } catch (error) {
     logger.error('Server başlatılırken hata oluştu:', { error });

@@ -281,9 +281,12 @@ async function sendEmail(htmlContent, date) {
     });
     
     // Email ayarları
+    // EMAIL_TO virgülle ayrılmış birden fazla alıcı olabilir
+    const recipients = CONFIG.email.to ? CONFIG.email.to.split(',').map(email => email.trim()) : [];
+    
     const mailOptions = {
       from: `"${CONFIG.clinicName} - Çağrı Raporu" <${CONFIG.email.from}>`,
-      to: CONFIG.email.to,
+      to: recipients.join(', '), // Birden fazla alıcıyı düzgün formatla
       subject: `📊 Günlük Çağrı Özeti - ${date} - ${CONFIG.clinicName}`,
       html: htmlContent,
     };

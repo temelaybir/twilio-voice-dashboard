@@ -20,7 +20,6 @@ export async function startCall(phoneNumber: string) {
     
     return data
   } catch (error) {
-    console.error('API Çağrı Hatası:', error)
     throw error
   }
 }
@@ -43,7 +42,6 @@ export async function startBulkCall(phoneNumbers: string[]) {
     
     return data
   } catch (error) {
-    console.error('Toplu Çağrı Hatası:', error)
     throw error
   }
 }
@@ -66,7 +64,6 @@ export async function getCallHistory(limit = 20, offset = 0) {
     
     return data
   } catch (error) {
-    console.error('Call History Hatası:', error)
     throw error
   }
 }
@@ -88,7 +85,6 @@ export async function getCallDetails(executionSid: string) {
     
     return data
   } catch (error) {
-    console.error('Call Details Hatası:', error)
     throw error
   }
 }
@@ -110,7 +106,6 @@ export async function getCallStats() {
     
     return data
   } catch (error) {
-    console.error('Call Stats Hatası:', error)
     throw error
   }
 }
@@ -138,18 +133,34 @@ export async function getAllCallHistoryForExport() {
     
     return data
   } catch (error) {
-    console.error('Export All Call History Hatası:', error)
     throw error
   }
 }
 
-// Legacy function - compatibility için
+// Legacy function - compatibility için - EVENTS için
 export async function getEventHistory(page = 1, limit = 100) {
   try {
-    const offset = (page - 1) * limit
-    return await getCallHistory(limit, offset)
+    const response = await fetch(`${API_BASE_URL}/calls/events?page=${page}&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP ${response.status}`)
+    }
+    
+    // Backend'den gelen format: { success, data: { events: [], pagination } }
+    // Frontend beklediği format: { success, data: [] }
+    return {
+      success: data.success,
+      data: data.data?.events || [],
+      pagination: data.data?.pagination
+    }
   } catch (error) {
-    console.error('Event History Hatası:', error)
     throw error
   }
 }
@@ -186,7 +197,6 @@ export async function getDailySummary(date?: string, direction: 'all' | 'inbound
     
     return data
   } catch (error) {
-    console.error('Daily Summary Hatası:', error)
     throw error
   }
 } 

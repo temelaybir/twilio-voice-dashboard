@@ -40,7 +40,6 @@ export default function CallSummaryPage() {
       setSummaryData(data)
       setLastRefresh(new Date())
     } catch (err: any) {
-      console.error('Günlük özet çekme hatası:', err)
       setError(err.message || 'Veri çekilirken bir hata oluştu')
     } finally {
       setLoading(false)

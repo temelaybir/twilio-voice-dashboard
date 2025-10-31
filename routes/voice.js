@@ -546,7 +546,7 @@ router.get('/history', async (req, res) => {
           to: call.to,
           from: call.from,
           status: call.status,
-          lastActivity: call.lastActivity,
+          lastActivity: Number(call.lastActivity) || Date.now(), // BIGINT'i number'a çevir
           createdAt: call.createdAt,
           dtmfActions: events.filter(e => e.eventType === 'dtmf' && e.action).map(e => ({
             digits: e.dtmfDigits,
@@ -764,7 +764,7 @@ router.get('/history/export/all', async (req, res) => {
           to: call.to,
           from: call.from,
           status: call.status,
-          lastActivity: call.lastActivity,
+          lastActivity: Number(call.lastActivity) || Date.now(), // BIGINT'i number'a çevir
           createdAt: call.createdAt,
           dtmfActions: events.filter(e => e.eventType === 'dtmf' && e.action).map(e => ({
             digits: e.dtmfDigits,

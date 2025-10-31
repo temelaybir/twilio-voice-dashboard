@@ -36,7 +36,6 @@ export function useCallHistory() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Veri yüklenirken hata oluştu'
       setError(errorMessage)
-      console.error('Call history fetch error:', err)
     } finally {
       setLoading(false)
     }

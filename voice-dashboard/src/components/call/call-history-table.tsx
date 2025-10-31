@@ -380,7 +380,24 @@ export function CallHistoryTable({
                   <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                     <Clock className="h-3 w-3" />
                     <span>
-                      {format(new Date(call.lastActivity), 'dd.MM.yyyy HH:mm', { locale: tr })}
+                      {(() => {
+                        try {
+                          if (!call.lastActivity) {
+                            return 'Geçersiz tarih'
+                          }
+                          // lastActivity bir timestamp (number) olmalı
+                          const timestamp = typeof call.lastActivity === 'number' 
+                            ? call.lastActivity 
+                            : Number(call.lastActivity)
+                          const date = new Date(timestamp)
+                          if (isNaN(date.getTime()) || !isFinite(date.getTime())) {
+                            return 'Geçersiz tarih'
+                          }
+                          return format(date, 'dd.MM.yyyy HH:mm', { locale: tr })
+                        } catch {
+                          return 'Geçersiz tarih'
+                        }
+                      })()}
                     </span>
                   </div>
                 </TableCell>

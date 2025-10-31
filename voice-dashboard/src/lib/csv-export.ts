@@ -32,10 +32,14 @@ export function convertToCSV(calls: CallHistoryItem[]): string {
     const dtmfDetails = call.dtmfActions
       .map(dtmf => {
         try {
+          if (!dtmf.timestamp) {
+            return `${dtmf.digits} (Geçersiz tarih)`
+          }
           const date = new Date(dtmf.timestamp)
-          return isNaN(date.getTime()) 
-            ? `${dtmf.digits} (Geçersiz tarih)` 
-            : `${dtmf.digits} (${format(date, 'dd.MM.yyyy HH:mm', { locale: tr })})`
+          if (isNaN(date.getTime()) || !isFinite(date.getTime())) {
+            return `${dtmf.digits} (Geçersiz tarih)`
+          }
+          return `${dtmf.digits} (${format(date, 'dd.MM.yyyy HH:mm', { locale: tr })})`
         } catch {
           return `${dtmf.digits} (Geçersiz tarih)`
         }
@@ -44,8 +48,14 @@ export function convertToCSV(calls: CallHistoryItem[]): string {
 
     const formatSafeDate = (timestamp: any) => {
       try {
+        if (!timestamp) {
+          return 'Geçersiz tarih'
+        }
         const date = new Date(timestamp)
-        return isNaN(date.getTime()) ? 'Geçersiz tarih' : format(date, 'dd.MM.yyyy HH:mm:ss', { locale: tr })
+        if (isNaN(date.getTime()) || !isFinite(date.getTime())) {
+          return 'Geçersiz tarih'
+        }
+        return format(date, 'dd.MM.yyyy HH:mm:ss', { locale: tr })
       } catch {
         return 'Geçersiz tarih'
       }

@@ -45,13 +45,15 @@ export function isValidPhoneNumber(phoneNumber: string): boolean {
 }
 
 // Timestamp formatting
-export function formatTimestamp(timestamp?: string | number): string {
-  if (!timestamp) return 'Bilinmiyor'
+export function formatTimestamp(timestamp?: string | number | null): string {
+  if (!timestamp || timestamp === null) {
+    return 'Bilinmiyor'
+  }
   
   try {
     const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp)
     
-    if (isNaN(date.getTime())) {
+    if (isNaN(date.getTime()) || !isFinite(date.getTime())) {
       return 'Geçersiz tarih'
     }
     
@@ -74,7 +76,6 @@ export function formatTimestamp(timestamp?: string | number): string {
       return 'Şimdi'
     }
   } catch (error) {
-    console.error('Timestamp format error:', error)
     return 'Hata'
   }
 }

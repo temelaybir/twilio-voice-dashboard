@@ -162,7 +162,7 @@ export default function DashboardPage() {
       router.push('/login')
       router.refresh()
     } catch (error) {
-      console.error('Logout error:', error)
+      // Silent error handling
     }
   }
 
@@ -466,8 +466,19 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {events.map((event, index) => (
-                          <div key={index} className="border rounded-lg p-4 bg-gray-50">
+                        {events
+                          .filter((event, index, self) => {
+                            // Aynı execution_sid, time, type, digits ve action'a sahip duplicate event'leri filtrele
+                            return index === self.findIndex((e) => 
+                              e.execution_sid === event.execution_sid &&
+                              e.time === event.time &&
+                              e.type === event.type &&
+                              e.digits === event.digits &&
+                              e.action === event.action
+                            )
+                          })
+                          .map((event, index) => (
+                          <div key={`${event.execution_sid}-${event.time}-${event.type}-${event.action || ''}-${index}`} className="border rounded-lg p-4 bg-gray-50">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-3">
                                 <div className={`w-3 h-3 rounded-full ${

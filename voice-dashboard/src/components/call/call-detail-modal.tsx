@@ -187,7 +187,20 @@ export function CallDetailModal({ executionSid, open, onOpenChange }: CallDetail
                   </h3>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="h-3 w-3" />
-                    {format(new Date(callDetails.createdAt), 'dd MMMM yyyy HH:mm', { locale: tr })}
+                    {(() => {
+                      try {
+                        if (!callDetails.createdAt) {
+                          return 'Geçersiz tarih'
+                        }
+                        const date = new Date(callDetails.createdAt)
+                        if (isNaN(date.getTime()) || !isFinite(date.getTime())) {
+                          return 'Geçersiz tarih'
+                        }
+                        return format(date, 'dd MMMM yyyy HH:mm', { locale: tr })
+                      } catch {
+                        return 'Geçersiz tarih'
+                      }
+                    })()}
                   </div>
                   {callDetails.callSid && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -233,8 +246,14 @@ export function CallDetailModal({ executionSid, open, onOpenChange }: CallDetail
                           <div className="text-xs text-muted-foreground">
                             {(() => {
                               try {
+                                if (!event.timestamp) {
+                                  return 'Geçersiz tarih'
+                                }
                                 const date = new Date(event.timestamp)
-                                return isNaN(date.getTime()) ? 'Geçersiz tarih' : format(date, 'HH:mm:ss', { locale: tr })
+                                if (isNaN(date.getTime()) || !isFinite(date.getTime())) {
+                                  return 'Geçersiz tarih'
+                                }
+                                return format(date, 'HH:mm:ss', { locale: tr })
                               } catch {
                                 return 'Geçersiz tarih'
                               }
