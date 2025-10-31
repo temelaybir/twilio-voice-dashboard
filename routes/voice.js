@@ -466,7 +466,7 @@ router.get('/events', async (req, res) => {
       type: event.eventType,
       digits: event.dtmfDigits,
       action: event.action,
-      time: event.timestamp,
+      time: Number(event.timestamp), // BIGINT'i number'a çevir
       eventData: event.eventData ? JSON.parse(event.eventData) : null
     }));
 
@@ -551,7 +551,7 @@ router.get('/history', async (req, res) => {
           dtmfActions: events.filter(e => e.eventType === 'dtmf' && e.action).map(e => ({
             digits: e.dtmfDigits,
             action: e.action,
-            timestamp: e.timestamp
+            timestamp: Number(e.timestamp) // BIGINT'i number'a çevir
           })),
           events: events.map(e => ({
             id: e.id,
@@ -559,7 +559,7 @@ router.get('/history', async (req, res) => {
             status: e.status,
             dtmfDigits: e.dtmfDigits,
             action: e.action,
-            timestamp: e.timestamp,
+            timestamp: Number(e.timestamp), // BIGINT'i number'a çevir
             eventData: e.eventData ? JSON.parse(e.eventData) : null
           }))
         };
@@ -630,7 +630,7 @@ router.get('/history/:executionSid', async (req, res) => {
         status: e.status,
         dtmfDigits: e.dtmfDigits,
         action: e.action,
-        timestamp: e.timestamp,
+        timestamp: Number(e.timestamp), // BIGINT'i number'a çevir
         eventData: e.eventData ? JSON.parse(e.eventData) : null
       }))
     };
@@ -769,7 +769,7 @@ router.get('/history/export/all', async (req, res) => {
           dtmfActions: events.filter(e => e.eventType === 'dtmf' && e.action).map(e => ({
             digits: e.dtmfDigits,
             action: e.action,
-            timestamp: e.timestamp
+            timestamp: Number(e.timestamp) // BIGINT'i number'a çevir
           })),
           events: events.map(e => ({
             id: e.id,
@@ -777,7 +777,7 @@ router.get('/history/export/all', async (req, res) => {
             status: e.status,
             dtmfDigits: e.dtmfDigits,
             action: e.action,
-            timestamp: e.timestamp,
+            timestamp: Number(e.timestamp), // BIGINT'i number'a çevir
             eventData: e.eventData ? JSON.parse(e.eventData) : null
           }))
         };
