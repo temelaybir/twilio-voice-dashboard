@@ -1,23 +1,30 @@
-# Twilio Voice Dashboard UI
+# Twilio Voice Dashboard UI v2.0
 
-Modern, gerçek zamanlı çağrı izleme ve yönetim dashboard'u.
+Modern, otomatik yenilenen çağrı izleme ve yönetim dashboard'u.
+
+## 🎉 Yeni v2.0
+
+⚠️ **Önemli**: Socket.IO kaldırıldı. Sistem artık REST API polling ile otomatik yenileniyor (5 saniyede bir).
 
 ## 🚀 Özellikler
 
-- **Gerçek Zamanlı İzleme**: Socket.IO ile anlık çağrı durumu güncellemeleri
+- **Otomatik Yenileme**: 5 saniyede bir API'den güncel veri çekme
+- **Backend Bağlantı İzleme**: API bağlantı durumu kontrolü
 - **Toplu Arama**: 10 numarayı aynı anda arama desteği
-- **DTMF Etkileşim**: Kullanıcı tuş basımlarının gerçek zamanlı takibi
+- **DTMF Etkileşim**: Kullanıcı tuş basımlarının takibi
 - **Modern UI/UX**: Next.js 14, Tailwind CSS ile geliştirildi
 - **Responsive Tasarım**: Mobil ve masaüstü uyumlu
 - **TypeScript**: Tam tip güvenliği
+- **Vercel Uyumlu**: Serverless fonksiyonlar ile tam uyumlu
 
 ## 🛠️ Teknoloji Stack
 
 - **Frontend**: Next.js 14 (App Router)
 - **Styling**: Tailwind CSS
 - **Language**: TypeScript
-- **Real-time**: Socket.IO Client
+- **Data Fetching**: REST API + Polling
 - **Form Validation**: React Hook Form + Zod
+- **UI Components**: Shadcn/ui
 
 ## 📋 Gereksinimler
 
@@ -51,17 +58,31 @@ Modern, gerçek zamanlı çağrı izleme ve yönetim dashboard'u.
 
 ## 🔌 Backend Entegrasyonu
 
-Dashboard, backend API ile entegre çalışır:
+Dashboard, backend REST API ile entegre çalışır:
 
 - **API Base URL**: `http://localhost:3001/api`
-- **Socket.IO**: `http://localhost:3001`
+- **Auto-Refresh**: Her 5 saniyede bir otomatik güncelleme
+- **Environment Variable**: `NEXT_PUBLIC_API_URL` (default: http://localhost:3001)
+
+### Environment Setup
+
+`.env.local` dosyası oluşturun:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
+Production için:
+```env
+NEXT_PUBLIC_API_URL=https://your-backend.vercel.app
+```
 
 ## 📱 Kullanım
 
 ### Tekil Çağrı
 1. Sol panelde telefon numarası girin
 2. "Ara" butonuna tıklayın
-3. Çağrı durumunu gerçek zamanlı takip edin
+3. Çağrı durumunu otomatik yenileme ile takip edin (5s)
 
 ### Toplu Çağrı  
 1. "Toplu Arama" moduna geçin

@@ -684,15 +684,21 @@ router.get('/stats', async (req, res) => {
     };
 
     // Son 7 günün istatistikleri
+    // MySQL ve SQLite için farklı syntax'lar
+    const isMySql = database.AppDataSource.options.type === 'mysql';
+    const dateFunction = isMySql 
+      ? 'DATE(FROM_UNIXTIME(timestamp/1000))'
+      : "DATE(datetime(timestamp/1000, 'unixepoch'))";
+    
     const weeklyStats = await eventRepository.query(`
       SELECT 
-        DATE(datetime(timestamp/1000, 'unixepoch')) as date,
+        ${dateFunction} as date,
         COUNT(DISTINCT executionSid) as calls,
         COUNT(CASE WHEN eventType = 'dtmf' AND action = 'confirm_appointment' THEN 1 END) as confirmed,
         COUNT(CASE WHEN eventType = 'dtmf' AND action = 'cancel_appointment' THEN 1 END) as cancelled
       FROM event_history 
       WHERE timestamp >= ?
-      GROUP BY DATE(datetime(timestamp/1000, 'unixepoch'))
+      GROUP BY ${dateFunction}
       ORDER BY date DESC
       LIMIT 7
     `, [Date.now() - (7 * 24 * 60 * 60 * 1000)]);

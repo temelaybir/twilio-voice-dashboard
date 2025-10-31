@@ -67,12 +67,11 @@ app.use(cors({
 
 // Middleware
 app.use(morgan('combined', { stream: logger.stream }));
-app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.raw({ type: '*/*' }));
 
-// Ana sayfa route'u - API Status
+// Ana sayfa route'u - API Status (static files'dan önce!)
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
@@ -92,8 +91,11 @@ app.get('/', (req, res) => {
   });
 });
 
-// Rotaları yükle
+// Rotaları yükle (static files'dan ÖNCE!)
 app.use('/api/calls', require('./routes/voice'));
+
+// Static files (API routes'tan SONRA!)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Ana fonksiyon
 async function startServer() {
@@ -120,8 +122,10 @@ async function startServer() {
 
     // Veritabanını başlat (varsa)
     if (database && database.initializeDatabase) {
-      await database.initializeDatabase();
-      logger.info('Veritabanı başarıyla başlatıldı');
+      const dbInitialized = await database.initializeDatabase();
+      if (!dbInitialized) {
+        logger.warn('⚠️ Veritabanı başlatılamadı, API-only modda devam ediliyor');
+      }
     } else {
       logger.warn('Veritabanı olmadan devam ediliyor');
     }

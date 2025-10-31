@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import io, { Socket } from 'socket.io-client'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { getEventHistory } from '@/lib/api'
 
 interface SocketEvent {
@@ -16,11 +15,31 @@ interface SocketEvent {
   action?: string
 }
 
-export function useSocket() {
-  const [socket, setSocket] = useState<Socket | null>(null)
+interface UseSocketReturn {
+  socket: null  // Artık socket yok, ama API uyumluluğu için tutuyoruz
+  isConnected: boolean  // API'ye bağlantı durumu
+  events: SocketEvent[]
+  clearEvents: () => void
+  isHydrated: boolean
+  loadEventHistory: () => Promise<void>
+  isPolling: boolean
+  lastUpdate: Date | null
+}
+
+// Polling interval (milisaniye)
+const POLLING_INTERVAL = 5000 // 5 saniye
+const CONNECTION_CHECK_INTERVAL = 10000 // 10 saniye
+
+export function useSocket(): UseSocketReturn {
   const [isConnected, setIsConnected] = useState(false)
   const [events, setEvents] = useState<SocketEvent[]>([])
   const [isHydrated, setIsHydrated] = useState(false)
+  const [isPolling, setIsPolling] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const connectionCheckRef = useRef<NodeJS.Timeout | null>(null)
+  const lastEventCountRef = useRef<number>(0)
 
   // LocalStorage'dan event'leri yükle
   const loadEventsFromStorage = useCallback(() => {
@@ -30,6 +49,7 @@ export function useSocket() {
         try {
           const parsedEvents = JSON.parse(stored)
           setEvents(parsedEvents)
+          lastEventCountRef.current = parsedEvents.length
         } catch (error) {
           console.error('Event parsing error:', error)
         }
@@ -41,12 +61,24 @@ export function useSocket() {
   // API'den event geçmişini yükle
   const loadEventHistory = useCallback(async () => {
     try {
+      setIsPolling(true)
       console.log('📡 Database\'den event geçmişi yükleniyor...')
       const response = await getEventHistory()
       
       if (response.success && response.data) {
-        console.log(`✅ ${response.data.length} event veritabanından yüklendi`)
+        const newEventCount = response.data.length
+        console.log(`✅ ${newEventCount} event veritabanından yüklendi`)
+        
+        // Yeni event varsa bildirim
+        if (lastEventCountRef.current > 0 && newEventCount > lastEventCountRef.current) {
+          const newEventsCount = newEventCount - lastEventCountRef.current
+          console.log(`🔔 ${newEventsCount} yeni event alındı!`)
+        }
+        
+        lastEventCountRef.current = newEventCount
         setEvents(response.data)
+        setLastUpdate(new Date())
+        setIsConnected(true)
         
         // LocalStorage'a da kaydet
         if (typeof window !== 'undefined') {
@@ -54,9 +86,13 @@ export function useSocket() {
         }
       } else {
         console.error('❌ Event geçmişi yüklenemedi:', response.error)
+        setIsConnected(false)
       }
     } catch (error) {
       console.error('❌ Event geçmişi yükleme hatası:', error)
+      setIsConnected(false)
+    } finally {
+      setIsPolling(false)
     }
   }, [])
 
@@ -70,84 +106,70 @@ export function useSocket() {
   // Event'leri temizle
   const clearEvents = useCallback(() => {
     setEvents([])
+    lastEventCountRef.current = 0
     if (typeof window !== 'undefined') {
       localStorage.removeItem('twilio-events')
     }
   }, [])
 
-  // Socket bağlantısı kur
-  useEffect(() => {
-    // VERCEL LIMITATION: Socket.IO Vercel serverless'te çalışmaz
-    // Production'da Socket.IO devre dışı
-    const isProduction = process.env.NODE_ENV === 'production'
-    
-    if (isProduction) {
-      console.warn('⚠️ Socket.IO production\'da devre dışı (Vercel serverless limitation)')
-      setIsConnected(false)
-      return
-    }
-
-    const newSocket = io('http://localhost:3001', {
-      transports: ['websocket', 'polling']
-    })
-
-    newSocket.on('connect', () => {
-      console.log('Socket.IO connected')
-      setIsConnected(true)
-    })
-
-    newSocket.on('disconnect', () => {
-      console.log('Socket.IO disconnected')
-      setIsConnected(false)
-    })
-
-    // Status update events - normal webhook events
-    newSocket.on('statusUpdate', (data: any) => {
-      console.log('📞 Status update:', data)
-      const newEvent: SocketEvent = {
-        ...data,
-        time: new Date().toISOString(),
-        type: 'status'
-      }
-      
-      setEvents(currentEvents => {
-        const updated = [newEvent, ...currentEvents]
-        return updated
+  // API bağlantısını kontrol et
+  const checkConnection = useCallback(async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+      const response = await fetch(`${apiUrl}/`, {
+        method: 'GET',
+        cache: 'no-cache'
       })
-    })
-
-    // DTMF events
-    newSocket.on('dtmfUpdate', (data: any) => {
-      console.log('🔢 DTMF update:', data)
-      const newEvent: SocketEvent = {
-        ...data,
-        time: new Date().toISOString(),
-        type: 'dtmf'
-      }
       
-      setEvents(currentEvents => {
-        const updated = [newEvent, ...currentEvents]
-        return updated
-      })
-    })
-
-    // Bulk call completion events
-    newSocket.on('bulkCallCompleted', (data: any) => {
-      console.log('📞 Bulk call completed:', data)
-    })
-
-    setSocket(newSocket)
-
-    return () => {
-      newSocket.close()
+      if (response.ok) {
+        const data = await response.json()
+        if (data.status === 'online') {
+          setIsConnected(true)
+          console.log('✅ Backend API bağlantısı aktif')
+        } else {
+          setIsConnected(false)
+        }
+      } else {
+        setIsConnected(false)
+      }
+    } catch (error) {
+      console.error('❌ Backend bağlantı kontrolü başarısız:', error)
+      setIsConnected(false)
     }
   }, [])
 
-  // Component mount olduğunda localStorage'dan yükle ve 500 event'i API'den çek
+  // Component mount olduğunda localStorage'dan yükle ve ilk event'leri çek
   useEffect(() => {
     loadEventsFromStorage()
-    loadEventHistory() // Otomatik olarak database'den yükle
-  }, [loadEventsFromStorage, loadEventHistory])
+    loadEventHistory() // İlk yükleme
+    checkConnection() // Bağlantı kontrolü
+  }, [loadEventsFromStorage, loadEventHistory, checkConnection])
+
+  // Polling mekanizması - düzenli aralıklarla event'leri güncelle
+  useEffect(() => {
+    // Polling'i başlat
+    pollingIntervalRef.current = setInterval(() => {
+      loadEventHistory()
+    }, POLLING_INTERVAL)
+
+    // Bağlantı kontrolü
+    connectionCheckRef.current = setInterval(() => {
+      checkConnection()
+    }, CONNECTION_CHECK_INTERVAL)
+
+    console.log(`🔄 Auto-refresh başlatıldı (${POLLING_INTERVAL/1000}s aralıkla)`)
+
+    // Cleanup
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        console.log('🛑 Auto-refresh durduruldu')
+      }
+      if (connectionCheckRef.current) {
+        clearInterval(connectionCheckRef.current)
+      }
+    }
+  }, [loadEventHistory, checkConnection])
 
   // Events değiştiğinde localStorage'a kaydet
   useEffect(() => {
@@ -157,11 +179,13 @@ export function useSocket() {
   }, [events, isHydrated, saveEventsToStorage])
 
   return {
-    socket,
-    isConnected,
+    socket: null, // Socket.IO artık yok
+    isConnected,  // API bağlantı durumu
     events,
     clearEvents,
     isHydrated,
-    loadEventHistory
+    loadEventHistory,
+    isPolling,
+    lastUpdate
   }
-} 
+}

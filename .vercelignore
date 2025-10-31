@@ -1,0 +1,10 @@
+node_modules
+voice-dashboard
+.env
+.git
+data
+*.sqlite
+README.md
+scripts
+public
+

@@ -86,18 +86,17 @@ async function initializeDatabase() {
     
     return true;
   } catch (error) {
-    logger.error('❌ Veritabanı başlatma hatası:', { 
-      error: error.message,
-      code: error.code 
-    });
+    logger.error(`❌ Veritabanı başlatma hatası: ${error.message}`);
     
     // MySQL bağlantı hataları için özel mesajlar
     if (error.code === 'ENOTFOUND') {
-      logger.error('MySQL host bulunamadı. DB_HOST değişkenini kontrol edin.');
+      logger.error('→ MySQL host bulunamadı. DB_HOST değişkenini kontrol edin.');
     } else if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-      logger.error('MySQL erişim reddedildi. Kullanıcı adı/şifre kontrol edin.');
+      logger.error('→ MySQL erişim reddedildi. Kullanıcı adı/şifre kontrol edin.');
     } else if (error.code === 'ER_BAD_DB_ERROR') {
-      logger.error('MySQL veritabanı bulunamadı. DB_NAME değişkenini kontrol edin.');
+      logger.error('→ MySQL veritabanı bulunamadı. DB_NAME değişkenini kontrol edin.');
+    } else if (error.code) {
+      logger.error(`→ MySQL Error Code: ${error.code}`);
     }
     
     return false;

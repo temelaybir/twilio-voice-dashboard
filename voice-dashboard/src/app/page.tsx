@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   
-  const { socket, isConnected, events, clearEvents, isHydrated, loadEventHistory } = useSocket()
+  const { socket, isConnected, events, clearEvents, isHydrated, loadEventHistory, isPolling, lastUpdate } = useSocket()
   const { 
     callHistory, 
     stats, 
@@ -356,18 +356,26 @@ export default function DashboardPage() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Backend API</span>
-                  <Badge variant="default" className="bg-green-100 text-green-800">Aktif</Badge>
+                  <Badge variant={isConnected ? "default" : "secondary"} className={isConnected ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                    {isConnected ? 'Bağlı' : 'Bağlantı Yok'}
+                  </Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm">Socket.IO</span>
-                  <Badge variant={isConnected ? "default" : "secondary"} className={isConnected ? "" : "bg-gray-100 text-gray-600"}>
-                    {isConnected ? 'Bağlı' : 'Devre Dışı'}
+                  <span className="text-sm">Auto-Refresh</span>
+                  <Badge variant="default" className={isPolling ? "bg-blue-100 text-blue-800 animate-pulse" : "bg-green-100 text-green-800"}>
+                    {isPolling ? 'Güncelleniyor...' : 'Aktif (5s)'}
                   </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Son Güncelleme</span>
+                  <span className="text-xs text-gray-500">
+                    {lastUpdate ? new Date(lastUpdate).toLocaleTimeString('tr-TR') : 'Henüz yok'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Veritabanı</span>
                   <Badge variant="secondary" className="bg-gray-100 text-gray-600">
-                    N/A (Vercel)
+                    MySQL/SQLite
                   </Badge>
                 </div>
               </CardContent>
