@@ -94,9 +94,39 @@ function validateTwilioWebhook(req) {
   }
 }
 
+// Database initialize kontrolü ve başlatma helper (Vercel için)
+async function ensureDatabaseInitialized() {
+  if (!database || !database.AppDataSource) {
+    return false;
+  }
+
+  const AppDataSource = database.AppDataSource;
+  
+  // Zaten initialize edilmişse
+  if (AppDataSource.isInitialized) {
+    return true;
+  }
+
+  // Initialize etmeye çalış
+  try {
+    await database.initializeDatabase();
+    return AppDataSource.isInitialized;
+  } catch (error) {
+    logger.error('Database initialize hatası:', { message: error.message });
+    return false;
+  }
+}
+
 // Event History'ye kaydetme fonksiyonu
 async function saveEventHistory(eventType, eventData) {
   if (!database || !database.AppDataSource || !EventHistory) {
+    return;
+  }
+
+  // Database initialize kontrolü
+  const isInitialized = await ensureDatabaseInitialized();
+  if (!isInitialized) {
+    logger.warn('Database initialize edilemedi, event kaydedilemiyor');
     return;
   }
 
@@ -534,11 +564,31 @@ router.get('/events', async (req, res) => {
       });
     }
 
+    // Vercel'de database initialize kontrolü ve başlatma
+    const isInitialized = await ensureDatabaseInitialized();
+    if (!isInitialized) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database başlatılamadı'
+      });
+    }
+
+    const AppDataSource = database.AppDataSource;
+
+    // Entity'nin metadata'da olduğundan emin ol
+    if (!AppDataSource.entityMetadatas.find(metadata => metadata.name === 'EventHistory')) {
+      logger.error('EventHistory entity metadata bulunamadı');
+      return res.status(500).json({
+        success: false,
+        error: 'EventHistory entity bulunamadı'
+      });
+    }
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 100;
     const offset = (page - 1) * limit;
 
-    const eventRepository = database.AppDataSource.getRepository(EventHistory);
+    const eventRepository = AppDataSource.getRepository(EventHistory);
     
     // Toplam sayı
     const total = await eventRepository.count();
@@ -594,6 +644,15 @@ router.get('/history', async (req, res) => {
       return res.status(503).json({
         success: false,
         error: 'Database bağlantısı mevcut değil'
+      });
+    }
+
+    // Database initialize kontrolü
+    const isInitialized = await ensureDatabaseInitialized();
+    if (!isInitialized) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database başlatılamadı'
       });
     }
 
@@ -754,6 +813,15 @@ router.get('/stats', async (req, res) => {
       });
     }
 
+    // Database initialize kontrolü
+    const isInitialized = await ensureDatabaseInitialized();
+    if (!isInitialized) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database başlatılamadı'
+      });
+    }
+
     const eventRepository = database.AppDataSource.getRepository(EventHistory);
     
     // Son 24 saat içindeki çağrılar
@@ -822,6 +890,15 @@ router.get('/history/export/all', async (req, res) => {
       return res.status(503).json({
         success: false,
         error: 'Database bağlantısı mevcut değil'
+      });
+    }
+
+    // Database initialize kontrolü
+    const isInitialized = await ensureDatabaseInitialized();
+    if (!isInitialized) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database başlatılamadı'
       });
     }
 
