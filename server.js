@@ -9,7 +9,21 @@ const morgan = require('morgan');
 const logger = require('./config/logger');
 const cron = require('node-cron');
 const { exec } = require('child_process');
-const dailyEmailReport = require('./scripts/daily-email-report.js');
+// Lazy require: daily-email-report.js sadece gerektiğinde yüklenecek
+// Vercel'de build sırasında sorun çıkmasın diye
+let dailyEmailReport = null;
+function getDailyEmailReport() {
+  if (!dailyEmailReport) {
+    try {
+      dailyEmailReport = require('./scripts/daily-email-report.js');
+    } catch (error) {
+      logger.error('❌ daily-email-report.js yüklenemedi:', { message: error.message });
+      // Fallback: email gönderme devre dışı
+      return null;
+    }
+  }
+  return dailyEmailReport;
+}
 
 // Çevre değişkenlerini yükle (en başta)
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -160,12 +174,21 @@ app.post('/api/daily-email', async (req, res) => {
     
     logger.info(`📧 [DAILY EMAIL] Rapor tarihi: ${testDate}`);
     
+    // Lazy load email report module
+    const emailReport = getDailyEmailReport();
+    if (!emailReport) {
+      return res.status(503).json({
+        error: 'Email service unavailable',
+        message: 'daily-email-report.js module not found or could not be loaded'
+      });
+    }
+    
     const loggerWrapper = {
       log: (msg, ...args) => logger.info(`📧 [EMAIL] ${msg}`, ...args),
       error: (msg, ...args) => logger.error(`❌ [EMAIL ERROR] ${msg}`, ...args)
     };
     
-    await dailyEmailReport.main(testDate, loggerWrapper);
+    await emailReport.main(testDate, loggerWrapper);
     
     res.json({ 
       success: true, 
@@ -232,12 +255,21 @@ app.post('/api/test-email', async (req, res) => {
     
     logger.info(`🧪 [TEST] Test tarihi: ${testDate}`);
     
+    // Lazy load email report module
+    const emailReport = getDailyEmailReport();
+    if (!emailReport) {
+      return res.status(503).json({
+        error: 'Email service unavailable',
+        message: 'daily-email-report.js module not found or could not be loaded'
+      });
+    }
+    
     const loggerWrapper = {
       log: (msg, ...args) => logger.info(`🧪 [TEST] ${msg}`, ...args),
       error: (msg, ...args) => logger.error(`🧪 [TEST ERROR] ${msg}`, ...args)
     };
     
-    await dailyEmailReport.main(testDate, loggerWrapper);
+    await emailReport.main(testDate, loggerWrapper);
     
     res.json({ 
       success: true, 
@@ -362,13 +394,20 @@ async function startServer() {
         logger.info(`📅 Rapor tarihi: ${targetDate} (Türkiye saati)`);
         
         try {
+          // Lazy load email report module
+          const emailReport = getDailyEmailReport();
+          if (!emailReport) {
+            logger.warn('⚠️ Email service unavailable - daily-email-report.js not found');
+            return;
+          }
+          
           // Modül olarak doğrudan çağır (Vercel uyumlu)
           const loggerWrapper = {
             log: (msg, ...args) => logger.info(msg, ...args),
             error: (msg, ...args) => logger.error(msg, ...args)
           };
           
-          await dailyEmailReport.main(targetDate, loggerWrapper);
+          await emailReport.main(targetDate, loggerWrapper);
           
           logger.info('✅ Günlük email raporu başarıyla gönderildi');
         } catch (error) {
