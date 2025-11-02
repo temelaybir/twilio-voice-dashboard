@@ -5,7 +5,16 @@ export async function POST(request: NextRequest) {
   try {
     const { password } = await request.json()
     
-    const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || 'admin123'
+    // Güvenlik: Default password kaldırıldı - Environment variable zorunlu
+    const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD
+    
+    if (!DASHBOARD_PASSWORD) {
+      console.error('❌ [SECURITY] DASHBOARD_PASSWORD environment variable tanımlı değil!')
+      return NextResponse.json({ 
+        success: false,
+        message: 'Server configuration error' 
+      }, { status: 500 })
+    }
     
     if (password === DASHBOARD_PASSWORD) {
       // Şifre doğru - Session cookie oluştur

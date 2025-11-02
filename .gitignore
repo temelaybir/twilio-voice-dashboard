@@ -17,6 +17,9 @@ lerna-debug.log
 scripts/
 !scripts/.gitkeep
 
+# Twilio Functions (güvenlik - email listesi ve hassas bilgiler)
+dailyCallSummary.js
+
 # Veritabanı
 data/*.sqlite
 data/*.sqlite-journal
