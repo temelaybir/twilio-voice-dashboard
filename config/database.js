@@ -90,6 +90,21 @@ async function initializeDatabase() {
   try {
     await AppDataSource.initialize();
     
+    // Entity metadata kontrolü (Vercel debug için)
+    const metadataCount = AppDataSource.entityMetadatas.length;
+    logger.info(`✅ Database initialize edildi - ${metadataCount} entity yüklendi`);
+    
+    // EventHistory entity kontrolü
+    const eventHistoryMetadata = AppDataSource.entityMetadatas.find(
+      metadata => metadata.name === 'EventHistory'
+    );
+    if (eventHistoryMetadata) {
+      logger.info('✅ EventHistory entity metadata bulundu');
+    } else {
+      logger.error('❌ EventHistory entity metadata BULUNAMADI!');
+      logger.error(`Yüklenen entity'ler: ${AppDataSource.entityMetadatas.map(m => m.name).join(', ')}`);
+    }
+    
     if (hasMySQL) {
       logger.info('✅ MySQL veritabanı bağlantısı başarıyla kuruldu');
     } else {
@@ -99,6 +114,7 @@ async function initializeDatabase() {
     return true;
   } catch (error) {
     logger.error(`❌ Veritabanı başlatma hatası: ${error.message}`);
+    logger.error(`Error stack: ${error.stack}`);
     
     // MySQL bağlantı hataları için özel mesajlar
     if (error.code === 'ENOTFOUND') {
