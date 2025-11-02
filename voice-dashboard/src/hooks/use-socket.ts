@@ -108,16 +108,23 @@ export function useSocket(): UseSocketReturn {
       // NEXT_PUBLIC_API_URL zaten /api içerebilir, kontrol et
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
       
-      // Eğer /api ile bitmiyorsa, backend root endpoint'ine git
+      // Eğer /api ile bitiyorsa, backend root endpoint'ine git
       // Backend'de / endpoint'i var, /api/calls/ değil
       const baseUrl = apiUrl.replace(/\/api\/?$/, '') // /api veya /api/ varsa kaldır
       
-      const response = await fetch(`${baseUrl}/`, {
+      // Trailing slash kontrolü
+      const healthCheckUrl = `${baseUrl.replace(/\/$/, '')}/`
+      
+      const response = await fetch(healthCheckUrl, {
         method: 'GET',
         cache: 'no-cache',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        // CORS için credentials ekle
+        credentials: 'omit',
+        // Timeout ekle (10 saniye)
+        signal: AbortSignal.timeout(10000)
       })
       
       if (response.ok) {
@@ -130,8 +137,13 @@ export function useSocket(): UseSocketReturn {
       } else {
         setIsConnected(false)
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Network error veya timeout
       setIsConnected(false)
+      // Sadece development'ta console'a yaz (production'da sessiz)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Backend API bağlantı hatası:', error.message || 'Network error')
+      }
     }
   }, [])
 
