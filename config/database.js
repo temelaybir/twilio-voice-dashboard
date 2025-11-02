@@ -8,19 +8,38 @@ const logger = require('./logger');
 let EventHistory = null;
 let Call = null;
 
+// Entity dosyalarının path'lerini kontrol et
+const eventHistoryPath = path.join(__dirname, '../models/EventHistory.js');
+const callPath = path.join(__dirname, '../models/Call.js');
+
+logger.info(`EventHistory path kontrolü: ${eventHistoryPath}`);
+logger.info(`Call path kontrolü: ${callPath}`);
+logger.info(`__dirname: ${__dirname}`);
+logger.info(`File exists EventHistory: ${fs.existsSync(eventHistoryPath)}`);
+logger.info(`File exists Call: ${fs.existsSync(callPath)}`);
+
 try {
-  const eventHistoryModule = require('../models/EventHistory');
+  // Absolute path ile require dene
+  const resolvedPath = require.resolve('../models/EventHistory', { paths: [__dirname] });
+  logger.info(`EventHistory resolved path: ${resolvedPath}`);
+  
+  const eventHistoryModule = require(resolvedPath);
   EventHistory = eventHistoryModule.EventHistory;
+  
   if (!EventHistory) {
     logger.error('❌ EventHistory entity module\'dan export edilemedi');
+    logger.error(`Module exports: ${Object.keys(eventHistoryModule).join(', ')}`);
   } else {
     logger.info('✅ EventHistory entity başarıyla import edildi');
+    logger.info(`EventHistory entity type: ${typeof EventHistory}`);
+    logger.info(`EventHistory options: ${JSON.stringify(EventHistory.options || {})}`);
   }
 } catch (error) {
   logger.error('❌ EventHistory entity import hatası:', { 
     message: error.message,
     stack: error.stack,
-    code: error.code
+    code: error.code,
+    path: eventHistoryPath
   });
   // Hata durumunda null kalır, entity kullanılamaz
 }
