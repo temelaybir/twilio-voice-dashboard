@@ -83,6 +83,51 @@ app.get('/', (req, res) => {
   });
 });
 
+// Test email endpoint (sadece TEST_EMAIL_SCHEDULER=true ise)
+app.post('/api/test-email', async (req, res) => {
+  if (process.env.TEST_EMAIL_SCHEDULER !== 'true') {
+    return res.status(403).json({ 
+      error: 'Test email endpoint disabled. Set TEST_EMAIL_SCHEDULER=true to enable.' 
+    });
+  }
+  
+  try {
+    logger.info('🧪 [MANUAL TEST] Test email endpoint çağrıldı');
+    
+    const { date } = req.body;
+    const testDate = date || new Date().toLocaleDateString('en-CA', { 
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    
+    logger.info(`🧪 [MANUAL TEST] Test tarihi: ${testDate}`);
+    
+    const loggerWrapper = {
+      log: (msg, ...args) => logger.info(`🧪 [TEST] ${msg}`, ...args),
+      error: (msg, ...args) => logger.error(`🧪 [TEST ERROR] ${msg}`, ...args)
+    };
+    
+    await dailyEmailReport.main(testDate, loggerWrapper);
+    
+    res.json({ 
+      success: true, 
+      message: 'Test email başarıyla gönderildi',
+      date: testDate
+    });
+  } catch (error) {
+    logger.error('❌ [MANUAL TEST] Test email hatası:', { 
+      message: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      error: 'Test email gönderme hatası',
+      message: error.message
+    });
+  }
+});
+
 // Rotaları yükle (static files'dan ÖNCE!)
 app.use('/api/calls', require('./routes/voice'));
 
@@ -193,13 +238,13 @@ async function startServer() {
       logger.info(`   Scheduler durumu: ÇALIŞIYOR ✅ (scheduled: ${emailJob.scheduled})`);
       logger.info('   Raporu devre dışı bırakmak için: ENABLE_DAILY_EMAIL=false');
       
-      // Test modu: 1 dakika sonra test email gönder (opsiyonel)
+      // Test modu: 10 saniye sonra test email gönder (opsiyonel)
       // Vercel'de TEST_EMAIL_SCHEDULER=true ekleyin, testten sonra kaldırın
       if (process.env.TEST_EMAIL_SCHEDULER === 'true') {
-        logger.info('🧪 Test modu: 1 dakika sonra test email gönderilecek...');
-        setTimeout(async () => {
-          logger.info('🧪 Test email gönderiliyor...');
+        logger.info('🧪 Test modu: 10 saniye sonra test email gönderilecek...');
+        const testTimeout = setTimeout(async () => {
           try {
+            logger.info('🧪 [TEST] Test email gönderme başlatıldı...');
             const testDate = new Date();
             const testDateStr = testDate.toLocaleDateString('en-CA', { 
               timeZone: 'Europe/Istanbul',
@@ -208,17 +253,28 @@ async function startServer() {
               day: '2-digit'
             });
             
+            logger.info(`🧪 [TEST] Test tarihi: ${testDateStr}`);
+            
             const loggerWrapper = {
-              log: (msg, ...args) => logger.info(msg, ...args),
-              error: (msg, ...args) => logger.error(msg, ...args)
+              log: (msg, ...args) => logger.info(`🧪 [TEST] ${msg}`, ...args),
+              error: (msg, ...args) => logger.error(`🧪 [TEST ERROR] ${msg}`, ...args)
             };
             
+            logger.info('🧪 [TEST] Email modülü çağrılıyor...');
             await dailyEmailReport.main(testDateStr, loggerWrapper);
-            logger.info('✅ Test email başarıyla gönderildi');
+            logger.info('✅ [TEST] Test email başarıyla gönderildi');
           } catch (error) {
-            logger.error('❌ Test email hatası:', error.message);
+            logger.error('❌ [TEST] Test email hatası:', { 
+              message: error.message,
+              stack: error.stack,
+              name: error.name
+            });
           }
-        }, 60000); // 1 dakika = 60000 ms
+        }, 10000); // 10 saniye = 10000 ms (test için daha hızlı)
+        
+        // Timeout'un kaybolmaması için global'a ekle
+        global.testEmailTimeout = testTimeout;
+        logger.info(`🧪 [TEST] Timeout ID: ${testTimeout}`);
       }
     } else {
       logger.info('⏰ Günlük email raporu scheduler devre dışı (ENABLE_DAILY_EMAIL=false)');
