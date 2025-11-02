@@ -87,11 +87,42 @@ function loadEnv($filePath) {
 }
 
 // .env dosyasını yükle (güvenli path)
-$envPath = realpath(__DIR__ . '/../.env');
+// Script ana klasörde veya scripts/ klasöründe olabilir
+$possibleEnvPaths = [
+    __DIR__ . '/.env',           // Script ana klasördeyse
+    __DIR__ . '/../.env',        // Script scripts/ klasöründeyse
+    dirname(__DIR__) . '/.env'   // Alternatif yol
+];
 
-// Güvenlik: Path traversal saldırısını önle
-if ($envPath === false || strpos($envPath, realpath(__DIR__ . '/..')) !== 0) {
-    echo "❌ HATA: Geçersiz .env dosyası yolu\n";
+$envPath = null;
+foreach ($possibleEnvPaths as $path) {
+    $realPath = realpath($path);
+    if ($realPath !== false && file_exists($realPath)) {
+        $envPath = $realPath;
+        break;
+    }
+}
+
+// .env dosyası bulunamadıysa hata ver
+if ($envPath === null) {
+    echo "❌ HATA: .env dosyası bulunamadı\n";
+    echo "   Aşağıdaki konumlarda arandı:\n";
+    foreach ($possibleEnvPaths as $path) {
+        echo "   - " . realpath(dirname($path)) . "/.env\n";
+    }
+    exit(1);
+}
+
+// Güvenlik: Path traversal saldırısını önle - .env dosyası script'in ana klasöründe olmalı
+$scriptDir = dirname($envPath);
+$allowedDir = realpath(dirname(__DIR__));
+if ($allowedDir === false) {
+    $allowedDir = realpath(__DIR__);
+}
+
+if ($allowedDir === false || strpos($envPath, $allowedDir) !== 0) {
+    echo "❌ HATA: Geçersiz .env dosyası yolu (güvenlik kontrolü)\n";
+    echo "   .env dosyası: $envPath\n";
     exit(1);
 }
 
