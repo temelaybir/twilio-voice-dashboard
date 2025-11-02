@@ -5,6 +5,5 @@ voice-dashboard
 data
 *.sqlite
 README.md
-scripts
 public
 

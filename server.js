@@ -9,7 +9,7 @@ const morgan = require('morgan');
 const logger = require('./config/logger');
 const cron = require('node-cron');
 const { exec } = require('child_process');
-const dailyEmailReport = require('./scripts/daily-email-report');
+const dailyEmailReport = require('./scripts/daily-email-report.js');
 
 // Çevre değişkenlerini yükle (en başta)
 dotenv.config({ path: path.resolve(__dirname, '.env') });
