@@ -1,0 +1,38 @@
+# Apache .htaccess - .env dosyasını ve hassas dosyaları koruma
+
+# .env dosyasına erişimi engelle
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# .env ve .env.* dosyalarını koruma
+<FilesMatch "^\.env">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# PHP script dosyalarını web'den erişilemez yap (sadece CLI)
+<FilesMatch "\.php$">
+    # Eğer web'den çağrılıyorsa engelle (sadece cron script'ler için)
+    <IfModule mod_rewrite.c>
+        RewriteEngine On
+        # scripts/ klasöründeki PHP dosyalarını engelle
+        RewriteCond %{REQUEST_URI} ^/scripts/
+        RewriteRule ^.*$ - [F,L]
+    </IfModule>
+</FilesMatch>
+
+# Hassas dosyaları koruma
+<FilesMatch "(\.env|\.git|\.log|config\.json)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Directory listing'i kapat
+Options -Indexes
+
+# PHP hata mesajlarını gizle (production)
+php_flag display_errors Off
+php_flag log_errors On
+

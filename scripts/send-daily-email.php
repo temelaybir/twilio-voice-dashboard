@@ -23,28 +23,61 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
-// Konfigürasyon - .env dosyasından okuma
+// Konfigürasyon - .env dosyasından okuma (güvenli)
 function loadEnv($filePath) {
     if (!file_exists($filePath)) {
         echo "⚠️  .env dosyası bulunamadı: $filePath\n";
         return [];
     }
     
+    // Güvenlik: Dosya okunabilir mi kontrol et
+    if (!is_readable($filePath)) {
+        echo "❌ HATA: .env dosyası okunamıyor (izin problemi)\n";
+        exit(1);
+    }
+    
+    // Güvenlik: Dosya gerçekten bir dosya mı kontrol et (symlink değil)
+    if (!is_file($filePath)) {
+        echo "❌ HATA: .env geçerli bir dosya değil\n";
+        exit(1);
+    }
+    
+    // Dosya içeriğini güvenli şekilde oku
+    $content = @file_get_contents($filePath);
+    if ($content === false) {
+        echo "❌ HATA: .env dosyası okunamadı\n";
+        exit(1);
+    }
+    
     $env = [];
-    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $lines = explode("\n", $content);
     
     foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) {
-            continue; // Yorum satırı
+        $line = trim($line);
+        
+        // Boş satır veya yorum satırı
+        if (empty($line) || strpos($line, '#') === 0) {
+            continue;
         }
         
+        // KEY=VALUE formatı kontrolü
         if (strpos($line, '=') !== false) {
             list($key, $value) = explode('=', $line, 2);
             $key = trim($key);
             $value = trim($value);
             
+            // Güvenlik: Sadece alfanümerik ve alt çizgi karakterlerine izin ver
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) {
+                continue; // Geçersiz key, atla
+            }
+            
             // Tırnak işaretlerini kaldır
             $value = trim($value, '"\'');
+            
+            // Güvenlik: Değerde özel karakterler varsa temizle (PHP 8.1+ uyumlu)
+            if (function_exists('filter_var') && defined('FILTER_SANITIZE_FULL_SPECIAL_CHARS')) {
+                $value = htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
             
             $env[$key] = $value;
         }
@@ -53,18 +86,43 @@ function loadEnv($filePath) {
     return $env;
 }
 
-// .env dosyasını yükle
-$envPath = __DIR__ . '/../.env';
+// .env dosyasını yükle (güvenli path)
+$envPath = realpath(__DIR__ . '/../.env');
+
+// Güvenlik: Path traversal saldırısını önle
+if ($envPath === false || strpos($envPath, realpath(__DIR__ . '/..')) !== 0) {
+    echo "❌ HATA: Geçersiz .env dosyası yolu\n";
+    exit(1);
+}
+
 $env = loadEnv($envPath);
 
 // Gerekli environment variables
 $backendUrl = $env['BACKEND_API_URL'] ?? 'https://twilio-voice-dashboard.vercel.app';
 $apiKey = $env['EMAIL_REPORT_API_KEY'] ?? '';
 
+// Güvenlik: Backend URL doğrulaması
+if (!filter_var($backendUrl, FILTER_VALIDATE_URL)) {
+    echo "❌ HATA: BACKEND_API_URL geçersiz URL formatı\n";
+    exit(1);
+}
+
+// HTTPS zorunluluğu (production güvenliği)
+if (strpos($backendUrl, 'https://') !== 0 && strpos($backendUrl, 'http://localhost') !== 0) {
+    echo "⚠️  UYARI: Backend URL HTTPS kullanmalı (güvenlik için)\n";
+}
+
 if (empty($apiKey)) {
     echo "❌ HATA: EMAIL_REPORT_API_KEY .env dosyasında tanımlı değil!\n";
     echo "   Vercel'de EMAIL_REPORT_API_KEY environment variable'ını set edin.\n";
+    echo "   Veya .env dosyasına şunu ekleyin:\n";
+    echo "   EMAIL_REPORT_API_KEY=your-api-key-here\n";
     exit(1);
+}
+
+// Güvenlik: API key minimum uzunluk kontrolü
+if (strlen($apiKey) < 16) {
+    echo "⚠️  UYARI: API key çok kısa (en az 16 karakter önerilir)\n";
 }
 
 // Tarih belirleme
