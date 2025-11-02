@@ -146,7 +146,8 @@ async function startServer() {
     // Günlük Email Raporu Scheduler - Türkiye saati ile 23:59'da
     // node-cron timezone desteği ile Türkiye saati (Europe/Istanbul)
     if (process.env.ENABLE_DAILY_EMAIL !== 'false') {
-      cron.schedule('59 23 * * *', () => {
+      // Cron job'ı tanımla
+      const emailJob = cron.schedule('59 23 * * *', () => {
         logger.info('📧 Günlük email raporu gönderiliyor (Türkiye saati: 23:59)...');
         
         // Türkiye saatine göre bugünün tarihini al
@@ -168,14 +169,19 @@ async function startServer() {
         const scriptPath = path.join(__dirname, 'scripts', 'daily-email-report.js');
         const command = `node "${scriptPath}" --date=${targetDate}`;
         
+        logger.info(`🔧 Komut çalıştırılıyor: ${command}`);
+        
         exec(command, { 
           cwd: __dirname, // Script'in çalışma dizini
-          env: process.env // Environment variables'ı geçir
+          env: process.env, // Environment variables'ı geçir
+          maxBuffer: 1024 * 1024 * 10 // 10MB buffer
         }, (error, stdout, stderr) => {
           if (error) {
             logger.error('❌ Günlük email raporu hatası:', { 
               error: error.message,
-              stderr: stderr 
+              stderr: stderr,
+              code: error.code,
+              signal: error.signal
             });
             return;
           }
@@ -184,13 +190,48 @@ async function startServer() {
           if (stdout) {
             logger.info('📧 Email script çıktısı:', stdout);
           }
+          if (stderr) {
+            logger.warn('⚠️ Email script stderr:', stderr);
+          }
         });
       }, {
-        timezone: 'Europe/Istanbul' // Türkiye saati
+        timezone: 'Europe/Istanbul', // Türkiye saati
+        scheduled: true // Açıkça aktif olarak ayarla
       });
       
+      // Scheduler'ın durumunu kontrol et
       logger.info('⏰ Günlük email raporu scheduler aktif - Her gün 23:59 (Türkiye saati)');
+      logger.info(`   Scheduler durumu: ${emailJob.running ? 'ÇALIŞIYOR ✅' : 'DURDURULDU ❌'}`);
       logger.info('   Raporu devre dışı bırakmak için: ENABLE_DAILY_EMAIL=false');
+      
+      // Test modu: 1 dakika sonra test email gönder (opsiyonel)
+      // Vercel'de TEST_EMAIL_SCHEDULER=true ekleyin, testten sonra kaldırın
+      if (process.env.TEST_EMAIL_SCHEDULER === 'true') {
+        logger.info('🧪 Test modu: 1 dakika sonra test email gönderilecek...');
+        setTimeout(() => {
+          logger.info('🧪 Test email gönderiliyor...');
+          const testDate = new Date();
+          const testDateStr = testDate.toLocaleDateString('en-CA', { 
+            timeZone: 'Europe/Istanbul',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          });
+          const scriptPath = path.join(__dirname, 'scripts', 'daily-email-report.js');
+          const command = `node "${scriptPath}" --date=${testDateStr}`;
+          exec(command, { 
+            cwd: __dirname,
+            env: process.env,
+            maxBuffer: 1024 * 1024 * 10
+          }, (error, stdout, stderr) => {
+            if (error) {
+              logger.error('❌ Test email hatası:', error.message);
+            } else {
+              logger.info('✅ Test email başarıyla gönderildi');
+            }
+          });
+        }, 60000); // 1 dakika = 60000 ms
+      }
     } else {
       logger.info('⏰ Günlük email raporu scheduler devre dışı (ENABLE_DAILY_EMAIL=false)');
     }
