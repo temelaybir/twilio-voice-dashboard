@@ -105,10 +105,19 @@ export function useSocket(): UseSocketReturn {
   // API bağlantısını kontrol et
   const checkConnection = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-      const response = await fetch(`${apiUrl}/`, {
+      // NEXT_PUBLIC_API_URL zaten /api içerebilir, kontrol et
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+      
+      // Eğer /api ile bitmiyorsa, backend root endpoint'ine git
+      // Backend'de / endpoint'i var, /api/calls/ değil
+      const baseUrl = apiUrl.replace(/\/api\/?$/, '') // /api veya /api/ varsa kaldır
+      
+      const response = await fetch(`${baseUrl}/`, {
         method: 'GET',
-        cache: 'no-cache'
+        cache: 'no-cache',
+        headers: {
+          'Content-Type': 'application/json',
+        }
       })
       
       if (response.ok) {

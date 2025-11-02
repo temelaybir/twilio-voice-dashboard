@@ -53,19 +53,55 @@ if (process.env.FRONTEND_URL) {
   corsOrigins.push(process.env.FRONTEND_URL);
 }
 
+// Vercel frontend URL'leri (production)
+// Örnek: https://voice-dashboard-six.vercel.app
+if (process.env.VERCEL_FRONTEND_URL) {
+  corsOrigins.push(process.env.VERCEL_FRONTEND_URL);
+}
+
+// Vercel preview URL'leri için wildcard (development/preview)
+// *.vercel.app pattern'i için dynamic origin kontrolü yapılacak
+const isVercelPreview = (origin) => {
+  if (!origin) return false;
+  return /^https:\/\/.*\.vercel\.app$/.test(origin);
+};
+
 // Ngrok URL varsa ekle (development için)
 if (process.env.NGROK_URL) {
   corsOrigins.push(process.env.NGROK_URL);
 }
 
 logger.info(`CORS Origins: ${corsOrigins.join(', ')}`);
+if (process.env.VERCEL_FRONTEND_URL) {
+  logger.info(`Vercel Frontend URL: ${process.env.VERCEL_FRONTEND_URL}`);
+}
 
 // CORS Middleware - Frontend istekleri için
 app.use(cors({
-  origin: corsOrigins,
+  origin: (origin, callback) => {
+    // Origin yoksa (same-origin request veya Postman gibi tools)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // CORS whitelist'te varsa izin ver
+    if (corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Vercel preview URL'leri için (development/preview)
+    if (isVercelPreview(origin)) {
+      logger.info(`✅ [CORS] Vercel preview URL izin verildi: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // İzin verilmeyen origin
+    logger.warn(`⚠️ [CORS] İzin verilmeyen origin: ${origin}`);
+    callback(new Error('CORS policy violation'));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key']
 }));
 
 // Middleware
