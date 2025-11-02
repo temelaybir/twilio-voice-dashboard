@@ -6,6 +6,13 @@ const logger = require('./logger');
 
 // Entity'leri explicit olarak import et (Vercel uyumluluğu için)
 const { EventHistory } = require('../models/EventHistory');
+// Call entity'si de varsa ekle
+let Call = null;
+try {
+  Call = require('../models/Call').Call;
+} catch (error) {
+  // Call entity yoksa sorun değil (opsiyonel)
+}
 
 // Vercel/Production environment kontrolü
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
@@ -30,7 +37,7 @@ if (hasMySQL) {
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       // Entity'leri explicit olarak belirt (Vercel uyumluluğu için)
-      entities: [EventHistory],
+      entities: Call ? [EventHistory, Call] : [EventHistory],
       synchronize: true, // Production'da false yapın ve migration kullanın
       logging: process.env.DB_LOGGING === 'true',
       charset: 'utf8mb4',
@@ -62,7 +69,7 @@ else if (!isProduction) {
       type: 'sqlite',
       database: path.join(dataDir, 'database.sqlite'),
       // Entity'leri explicit olarak belirt (Vercel uyumluluğu için)
-      entities: [EventHistory],
+      entities: Call ? [EventHistory, Call] : [EventHistory],
       synchronize: true,
       logging: false,
     });
