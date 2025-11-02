@@ -27,8 +27,9 @@ interface UseSocketReturn {
 }
 
 // Polling interval (milisaniye)
-const POLLING_INTERVAL = 5000 // 5 saniye
-const CONNECTION_CHECK_INTERVAL = 10000 // 10 saniye
+// Optimizasyon: 5 saniye → 15 saniye (server yükünü %66 azaltır)
+const POLLING_INTERVAL = 15000 // 15 saniye (optimize edildi)
+const CONNECTION_CHECK_INTERVAL = 30000 // 30 saniye (optimize edildi)
 
 export function useSocket(): UseSocketReturn {
   const [isConnected, setIsConnected] = useState(false)
@@ -159,15 +160,44 @@ export function useSocket(): UseSocketReturn {
   }, [loadEventsFromStorage, loadEventHistory, checkConnection])
 
   // Polling mekanizması - düzenli aralıklarla event'leri güncelle
+  // Optimizasyon: Page Visibility API ile tab görünürken polling
   useEffect(() => {
-    // Polling'i başlat
-    pollingIntervalRef.current = setInterval(() => {
-      loadEventHistory()
-    }, POLLING_INTERVAL)
+    let isPageVisible = true
+    
+    // Page Visibility API ile optimizasyon
+    const handleVisibilityChange = () => {
+      isPageVisible = !document.hidden
+      
+      if (isPageVisible) {
+        // Tab görünür olduğunda polling'i başlat
+        if (!pollingIntervalRef.current) {
+          pollingIntervalRef.current = setInterval(() => {
+            loadEventHistory()
+          }, POLLING_INTERVAL)
+        }
+      } else {
+        // Tab arka planda polling'i durdur (server yükünü azalt)
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current)
+          pollingIntervalRef.current = null
+        }
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    // Polling'i başlat (sadece tab görünürken)
+    if (isPageVisible) {
+      pollingIntervalRef.current = setInterval(() => {
+        loadEventHistory()
+      }, POLLING_INTERVAL)
+    }
 
-    // Bağlantı kontrolü
+    // Bağlantı kontrolü (daha az sıklıkla)
     connectionCheckRef.current = setInterval(() => {
-      checkConnection()
+      if (isPageVisible) {
+        checkConnection()
+      }
     }, CONNECTION_CHECK_INTERVAL)
 
     // Cleanup
@@ -178,6 +208,7 @@ export function useSocket(): UseSocketReturn {
       if (connectionCheckRef.current) {
         clearInterval(connectionCheckRef.current)
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [loadEventHistory, checkConnection])
 
