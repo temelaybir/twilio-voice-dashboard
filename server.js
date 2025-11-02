@@ -84,15 +84,42 @@ app.get('/', (req, res) => {
 });
 
 // Test email endpoint (sadece TEST_EMAIL_SCHEDULER=true ise)
+// Güvenlik: X-API-Key header'ı ile korumalı
 app.post('/api/test-email', async (req, res) => {
+  // Endpoint aktif mi kontrol et
   if (process.env.TEST_EMAIL_SCHEDULER !== 'true') {
     return res.status(403).json({ 
       error: 'Test email endpoint disabled. Set TEST_EMAIL_SCHEDULER=true to enable.' 
     });
   }
   
+  // API Key kontrolü
+  const apiKey = req.headers['x-api-key'];
+  const expectedApiKey = process.env.EMAIL_REPORT_API_KEY;
+  
+  if (!expectedApiKey) {
+    logger.warn('⚠️ [SECURITY] EMAIL_REPORT_API_KEY environment variable tanımlı değil');
+    return res.status(500).json({ 
+      error: 'Server configuration error: API key not configured' 
+    });
+  }
+  
+  if (!apiKey || apiKey !== expectedApiKey) {
+    logger.warn('⚠️ [SECURITY] Geçersiz API key ile test email endpoint erişim denemesi:', {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    return res.status(401).json({ 
+      error: 'Unauthorized: Invalid or missing API key',
+      hint: 'Please provide a valid X-API-Key header'
+    });
+  }
+  
   try {
-    logger.info('🧪 [MANUAL TEST] Test email endpoint çağrıldı');
+    logger.info('🧪 [MANUAL TEST] Test email endpoint çağrıldı (güvenli)', {
+      ip: req.ip,
+      date: req.body.date
+    });
     
     const { date } = req.body;
     const testDate = date || new Date().toLocaleDateString('en-CA', { 
