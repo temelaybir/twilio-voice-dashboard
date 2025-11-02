@@ -9,6 +9,7 @@ const morgan = require('morgan');
 const logger = require('./config/logger');
 const cron = require('node-cron');
 const { exec } = require('child_process');
+const dailyEmailReport = require('./scripts/daily-email-report');
 
 // Çevre değişkenlerini yükle (en başta)
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -147,7 +148,7 @@ async function startServer() {
     // node-cron timezone desteği ile Türkiye saati (Europe/Istanbul)
     if (process.env.ENABLE_DAILY_EMAIL !== 'false') {
       // Cron job'ı tanımla
-      const emailJob = cron.schedule('59 23 * * *', () => {
+      const emailJob = cron.schedule('59 23 * * *', async () => {
         logger.info('📧 Günlük email raporu gönderiliyor (Türkiye saati: 23:59)...');
         
         // Türkiye saatine göre bugünün tarihini al
@@ -165,71 +166,58 @@ async function startServer() {
         
         logger.info(`📅 Rapor tarihi: ${targetDate} (Türkiye saati)`);
         
-        // Script'i çalıştır
-        const scriptPath = path.join(__dirname, 'scripts', 'daily-email-report.js');
-        const command = `node "${scriptPath}" --date=${targetDate}`;
-        
-        logger.info(`🔧 Komut çalıştırılıyor: ${command}`);
-        
-        exec(command, { 
-          cwd: __dirname, // Script'in çalışma dizini
-          env: process.env, // Environment variables'ı geçir
-          maxBuffer: 1024 * 1024 * 10 // 10MB buffer
-        }, (error, stdout, stderr) => {
-          if (error) {
-            logger.error('❌ Günlük email raporu hatası:', { 
-              error: error.message,
-              stderr: stderr,
-              code: error.code,
-              signal: error.signal
-            });
-            return;
-          }
+        try {
+          // Modül olarak doğrudan çağır (Vercel uyumlu)
+          const loggerWrapper = {
+            log: (msg, ...args) => logger.info(msg, ...args),
+            error: (msg, ...args) => logger.error(msg, ...args)
+          };
+          
+          await dailyEmailReport.main(targetDate, loggerWrapper);
           
           logger.info('✅ Günlük email raporu başarıyla gönderildi');
-          if (stdout) {
-            logger.info('📧 Email script çıktısı:', stdout);
-          }
-          if (stderr) {
-            logger.warn('⚠️ Email script stderr:', stderr);
-          }
-        });
+        } catch (error) {
+          logger.error('❌ Günlük email raporu hatası:', { 
+            error: error.message,
+            stack: error.stack
+          });
+        }
       }, {
         timezone: 'Europe/Istanbul', // Türkiye saati
         scheduled: true // Açıkça aktif olarak ayarla
       });
       
       // Scheduler'ın durumunu kontrol et
+      // Not: emailJob.running hemen true olmayabilir, bir sonraki tick'te true olur
       logger.info('⏰ Günlük email raporu scheduler aktif - Her gün 23:59 (Türkiye saati)');
-      logger.info(`   Scheduler durumu: ${emailJob.running ? 'ÇALIŞIYOR ✅' : 'DURDURULDU ❌'}`);
+      logger.info(`   Scheduler durumu: ÇALIŞIYOR ✅ (scheduled: ${emailJob.scheduled})`);
       logger.info('   Raporu devre dışı bırakmak için: ENABLE_DAILY_EMAIL=false');
       
       // Test modu: 1 dakika sonra test email gönder (opsiyonel)
       // Vercel'de TEST_EMAIL_SCHEDULER=true ekleyin, testten sonra kaldırın
       if (process.env.TEST_EMAIL_SCHEDULER === 'true') {
         logger.info('🧪 Test modu: 1 dakika sonra test email gönderilecek...');
-        setTimeout(() => {
+        setTimeout(async () => {
           logger.info('🧪 Test email gönderiliyor...');
-          const testDate = new Date();
-          const testDateStr = testDate.toLocaleDateString('en-CA', { 
-            timeZone: 'Europe/Istanbul',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          });
-          const scriptPath = path.join(__dirname, 'scripts', 'daily-email-report.js');
-          const command = `node "${scriptPath}" --date=${testDateStr}`;
-          exec(command, { 
-            cwd: __dirname,
-            env: process.env,
-            maxBuffer: 1024 * 1024 * 10
-          }, (error, stdout, stderr) => {
-            if (error) {
-              logger.error('❌ Test email hatası:', error.message);
-            } else {
-              logger.info('✅ Test email başarıyla gönderildi');
-            }
-          });
+          try {
+            const testDate = new Date();
+            const testDateStr = testDate.toLocaleDateString('en-CA', { 
+              timeZone: 'Europe/Istanbul',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit'
+            });
+            
+            const loggerWrapper = {
+              log: (msg, ...args) => logger.info(msg, ...args),
+              error: (msg, ...args) => logger.error(msg, ...args)
+            };
+            
+            await dailyEmailReport.main(testDateStr, loggerWrapper);
+            logger.info('✅ Test email başarıyla gönderildi');
+          } catch (error) {
+            logger.error('❌ Test email hatası:', error.message);
+          }
         }, 60000); // 1 dakika = 60000 ms
       }
     } else {

@@ -65,10 +65,10 @@ function getTargetDate() {
 /**
  * Backend API'den günlük özeti çek
  */
-async function fetchDailySummary(date) {
+async function fetchDailySummary(date, logger = console) {
   try {
     const url = `${CONFIG.apiUrl}/api/calls/daily-summary?date=${date}&direction=all`;
-    console.log(`📡 API çağrısı yapılıyor: ${url}`);
+    logger.log(`📡 API çağrısı yapılıyor: ${url}`);
     
     const response = await axios.get(url, {
       timeout: 30000, // 30 saniye timeout
@@ -78,12 +78,12 @@ async function fetchDailySummary(date) {
       throw new Error('API yanıtı başarısız');
     }
     
-    console.log('✅ Veri başarıyla çekildi');
+    logger.log('✅ Veri başarıyla çekildi');
     return response.data;
   } catch (error) {
-    console.error('❌ API hatası:', error.message);
+    logger.error('❌ API hatası:', error.message);
     if (error.response) {
-      console.error('Response:', error.response.data);
+      logger.error('Response:', error.response.data);
     }
     throw error;
   }
@@ -268,9 +268,9 @@ function generateEmailHTML(data) {
 /**
  * Email gönder
  */
-async function sendEmail(htmlContent, date) {
+async function sendEmail(htmlContent, date, logger = console) {
   try {
-    console.log('📧 Email gönderiliyor...');
+    logger.log('📧 Email gönderiliyor...');
     
     // Şifre ve kullanıcı adını temizle (başta/sonda boşluk varsa)
     const cleanUser = CONFIG.email.auth.user ? CONFIG.email.auth.user.trim() : '';
@@ -310,22 +310,25 @@ async function sendEmail(htmlContent, date) {
     // Email gönder
     const info = await transporter.sendMail(mailOptions);
     
-    console.log('✅ Email başarıyla gönderildi:', info.messageId);
-    console.log('📬 Alıcı:', CONFIG.email.to);
+    logger.log('✅ Email başarıyla gönderildi:', info.messageId);
+    logger.log('📬 Alıcı:', CONFIG.email.to);
     
     return info;
   } catch (error) {
-    console.error('❌ Email gönderme hatası:', error.message);
+    logger.error('❌ Email gönderme hatası:', error.message);
     throw error;
   }
 }
 
 /**
  * Ana fonksiyon
+ * @param {string} targetDate - Rapor tarihi (YYYY-MM-DD formatında), null ise bugünü kullanır
+ * @param {Function} logger - Logger fonksiyonu (opsiyonel, console.log yerine)
+ * @returns {Promise<void>}
  */
-async function main() {
-  console.log('🚀 Günlük Email Raporu Script Başlatıldı');
-  console.log('═'.repeat(50));
+async function main(targetDate = null, logger = console) {
+  logger.log('🚀 Günlük Email Raporu Script Başlatıldı');
+  logger.log('═'.repeat(50));
   
   try {
     // Email ayarlarını kontrol et
@@ -338,38 +341,47 @@ async function main() {
     }
     
     // Tarih belirle
-    const targetDate = getTargetDate();
-    console.log(`📅 Rapor tarihi: ${targetDate}`);
+    const date = targetDate || getTargetDate();
+    logger.log(`📅 Rapor tarihi: ${date}`);
     
     // Backend'in çalıştığını kontrol et
-    console.log(`🔍 Backend kontrol ediliyor: ${CONFIG.apiUrl}`);
+    logger.log(`🔍 Backend kontrol ediliyor: ${CONFIG.apiUrl}`);
     
     // Günlük özeti çek
-    const summaryData = await fetchDailySummary(targetDate);
+    const summaryData = await fetchDailySummary(date, logger);
     
-    console.log(`📊 İstatistikler:`);
-    console.log(`   - Gelen: ${summaryData.stats.inbound.total} (Yanıtlanan: ${summaryData.stats.inbound.answered})`);
-    console.log(`   - Giden: ${summaryData.stats.outbound.total} (Tamamlanan: ${summaryData.stats.outbound.completed})`);
-    console.log(`   - Toplam: ${summaryData.stats.overall.totalCalls} çağrı`);
+    logger.log(`📊 İstatistikler:`);
+    logger.log(`   - Gelen: ${summaryData.stats.inbound.total} (Yanıtlanan: ${summaryData.stats.inbound.answered})`);
+    logger.log(`   - Giden: ${summaryData.stats.outbound.total} (Tamamlanan: ${summaryData.stats.outbound.completed})`);
+    logger.log(`   - Toplam: ${summaryData.stats.overall.totalCalls} çağrı`);
     
     // HTML email oluştur
     const htmlContent = generateEmailHTML(summaryData);
     
     // Email gönder
-    await sendEmail(htmlContent, summaryData.date);
+    await sendEmail(htmlContent, summaryData.date, logger);
     
-    console.log('═'.repeat(50));
-    console.log('✅ İşlem başarıyla tamamlandı!');
-    process.exit(0);
+    logger.log('═'.repeat(50));
+    logger.log('✅ İşlem başarıyla tamamlandı!');
     
   } catch (error) {
-    console.error('═'.repeat(50));
-    console.error('❌ Hata:', error.message);
-    console.error('═'.repeat(50));
-    process.exit(1);
+    logger.error('═'.repeat(50));
+    logger.error('❌ Hata:', error.message);
+    logger.error('═'.repeat(50));
+    throw error; // Modül kullanımında hata fırlatılmalı
   }
 }
 
-// Script'i çalıştır
-main();
+// Modül olarak export et (server.js'den kullanım için)
+module.exports = { main, sendEmail, fetchDailySummary, generateEmailHTML };
+
+// Eğer script doğrudan çalıştırılıyorsa (CLI)
+if (require.main === module) {
+  main().then(() => {
+    process.exit(0);
+  }).catch((error) => {
+    console.error('❌ Script hatası:', error.message);
+    process.exit(1);
+  });
+}
 
