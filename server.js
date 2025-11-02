@@ -444,13 +444,21 @@ async function startServer() {
             
             logger.info(`🧪 [TEST] Test tarihi: ${testDateStr}`);
             
+            logger.info('🧪 [TEST] Email modülü çağrılıyor...');
+            
+            // Lazy load email report module
+            const emailReport = getDailyEmailReport();
+            if (!emailReport) {
+              logger.warn('⚠️ [TEST] Email service unavailable - daily-email-report.js not found');
+              return;
+            }
+            
             const loggerWrapper = {
               log: (msg, ...args) => logger.info(`🧪 [TEST] ${msg}`, ...args),
               error: (msg, ...args) => logger.error(`🧪 [TEST ERROR] ${msg}`, ...args)
             };
             
-            logger.info('🧪 [TEST] Email modülü çağrılıyor...');
-            await dailyEmailReport.main(testDateStr, loggerWrapper);
+            await emailReport.main(testDateStr, loggerWrapper);
             logger.info('✅ [TEST] Test email başarıyla gönderildi');
           } catch (error) {
             logger.error('❌ [TEST] Test email hatası:', { 
