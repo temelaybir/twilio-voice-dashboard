@@ -36,6 +36,10 @@ export function useCallHistory() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Veri yüklenirken hata oluştu'
       setError(errorMessage)
+      // Development'ta error log (production'da sessiz)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Call history yükleme hatası:', err instanceof Error ? err.message : err)
+      }
     } finally {
       setLoading(false)
     }

@@ -79,8 +79,12 @@ export function useSocket(): UseSocketReturn {
       } else {
         setIsConnected(false)
       }
-    } catch (error) {
+    } catch (error: any) {
       setIsConnected(false)
+      // Development'ta error log (production'da sessiz)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Event history yükleme hatası:', error.message || error)
+      }
     } finally {
       setIsPolling(false)
     }
