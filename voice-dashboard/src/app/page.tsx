@@ -386,7 +386,7 @@ export default function DashboardPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Auto-Refresh</span>
                   <Badge variant="default" className={isPolling ? "bg-blue-100 text-blue-800 animate-pulse" : "bg-green-100 text-green-800"}>
-                    {isPolling ? 'Güncelleniyor...' : 'Aktif (5s)'}
+                    {isPolling ? 'Güncelleniyor...' : 'Aktif (15s)'}
                   </Badge>
                 </div>
                 <div className="flex justify-between items-center">
