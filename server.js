@@ -83,17 +83,82 @@ app.get('/', (req, res) => {
   });
 });
 
-// Test email endpoint (sadece TEST_EMAIL_SCHEDULER=true ise)
+// Daily email endpoint - Production için (API key ile korumalı)
 // Güvenlik: X-API-Key header'ı ile korumalı
+app.post('/api/daily-email', async (req, res) => {
+  // API Key kontrolü
+  const apiKey = req.headers['x-api-key'];
+  const expectedApiKey = process.env.EMAIL_REPORT_API_KEY;
+  
+  if (!expectedApiKey) {
+    logger.warn('⚠️ [SECURITY] EMAIL_REPORT_API_KEY environment variable tanımlı değil');
+    return res.status(500).json({ 
+      error: 'Server configuration error: API key not configured' 
+    });
+  }
+  
+  if (!apiKey || apiKey !== expectedApiKey) {
+    logger.warn('⚠️ [SECURITY] Geçersiz API key ile daily email endpoint erişim denemesi:', {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    return res.status(401).json({ 
+      error: 'Unauthorized: Invalid or missing API key',
+      hint: 'Please provide a valid X-API-Key header'
+    });
+  }
+  
+  try {
+    logger.info('📧 [DAILY EMAIL] Günlük email endpoint çağrıldı', {
+      ip: req.ip,
+      date: req.body.date
+    });
+    
+    const { date } = req.body;
+    const testDate = date || new Date().toLocaleDateString('en-CA', { 
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    
+    logger.info(`📧 [DAILY EMAIL] Rapor tarihi: ${testDate}`);
+    
+    const loggerWrapper = {
+      log: (msg, ...args) => logger.info(`📧 [EMAIL] ${msg}`, ...args),
+      error: (msg, ...args) => logger.error(`❌ [EMAIL ERROR] ${msg}`, ...args)
+    };
+    
+    await dailyEmailReport.main(testDate, loggerWrapper);
+    
+    res.json({ 
+      success: true, 
+      message: 'Test email başarıyla gönderildi',
+      date: testDate
+    });
+  } catch (error) {
+    logger.error('❌ [DAILY EMAIL] Email gönderme hatası:', { 
+      message: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      error: 'Email gönderme hatası',
+      message: error.message
+    });
+  }
+});
+
+// Test email endpoint (sadece TEST_EMAIL_SCHEDULER=true ise - backward compatibility)
 app.post('/api/test-email', async (req, res) => {
   // Endpoint aktif mi kontrol et
   if (process.env.TEST_EMAIL_SCHEDULER !== 'true') {
     return res.status(403).json({ 
-      error: 'Test email endpoint disabled. Set TEST_EMAIL_SCHEDULER=true to enable.' 
+      error: 'Test email endpoint disabled. Use /api/daily-email instead or set TEST_EMAIL_SCHEDULER=true.',
+      hint: 'Production için /api/daily-email endpoint\'ini kullanın (API key ile korumalı)'
     });
   }
   
-  // API Key kontrolü
+  // API Key kontrolü (aynı)
   const apiKey = req.headers['x-api-key'];
   const expectedApiKey = process.env.EMAIL_REPORT_API_KEY;
   
@@ -116,7 +181,7 @@ app.post('/api/test-email', async (req, res) => {
   }
   
   try {
-    logger.info('🧪 [MANUAL TEST] Test email endpoint çağrıldı (güvenli)', {
+    logger.info('🧪 [TEST] Test email endpoint çağrıldı (güvenli)', {
       ip: req.ip,
       date: req.body.date
     });
@@ -129,7 +194,7 @@ app.post('/api/test-email', async (req, res) => {
       day: '2-digit'
     });
     
-    logger.info(`🧪 [MANUAL TEST] Test tarihi: ${testDate}`);
+    logger.info(`🧪 [TEST] Test tarihi: ${testDate}`);
     
     const loggerWrapper = {
       log: (msg, ...args) => logger.info(`🧪 [TEST] ${msg}`, ...args),
@@ -144,7 +209,7 @@ app.post('/api/test-email', async (req, res) => {
       date: testDate
     });
   } catch (error) {
-    logger.error('❌ [MANUAL TEST] Test email hatası:', { 
+    logger.error('❌ [TEST] Test email hatası:', { 
       message: error.message,
       stack: error.stack
     });

@@ -187,8 +187,8 @@ echo "📅 Rapor tarihi: $targetDate\n";
 echo "🔗 Backend URL: $backendUrl\n";
 echo "\n";
 
-// API endpoint URL
-$apiUrl = rtrim($backendUrl, '/') . '/api/test-email';
+// API endpoint URL (production endpoint kullan)
+$apiUrl = rtrim($backendUrl, '/') . '/api/daily-email';
 
 // Request body
 $data = [];
