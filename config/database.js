@@ -5,13 +5,36 @@ const path = require('path');
 const logger = require('./logger');
 
 // Entity'leri explicit olarak import et (Vercel uyumluluğu için)
-const { EventHistory } = require('../models/EventHistory');
-// Call entity'si de varsa ekle
+let EventHistory = null;
 let Call = null;
+
 try {
-  Call = require('../models/Call').Call;
+  const eventHistoryModule = require('../models/EventHistory');
+  EventHistory = eventHistoryModule.EventHistory;
+  if (!EventHistory) {
+    logger.error('❌ EventHistory entity module\'dan export edilemedi');
+  } else {
+    logger.info('✅ EventHistory entity başarıyla import edildi');
+  }
+} catch (error) {
+  logger.error('❌ EventHistory entity import hatası:', { 
+    message: error.message,
+    stack: error.stack,
+    code: error.code
+  });
+  // Hata durumunda null kalır, entity kullanılamaz
+}
+
+// Call entity'si de varsa ekle
+try {
+  const callModule = require('../models/Call');
+  Call = callModule.Call;
+  if (Call) {
+    logger.info('✅ Call entity başarıyla import edildi');
+  }
 } catch (error) {
   // Call entity yoksa sorun değil (opsiyonel)
+  logger.debug('Call entity import edilemedi (opsiyonel):', error.message);
 }
 
 // Vercel/Production environment kontrolü
@@ -29,6 +52,15 @@ if (hasMySQL) {
   try {
     logger.info('MySQL bağlantısı yapılandırılıyor...');
     
+    // Entity kontrolü
+    if (!EventHistory) {
+      logger.error('❌ EventHistory entity import edilemedi - MySQL bağlantısı oluşturulamıyor');
+      throw new Error('EventHistory entity bulunamadı');
+    }
+    
+    const entities = Call ? [EventHistory, Call] : [EventHistory];
+    logger.info(`MySQL için ${entities.length} entity yüklenecek: ${entities.map(e => e.options?.name || 'unknown').join(', ')}`);
+    
     AppDataSource = new DataSource({
       type: 'mysql',
       host: process.env.DB_HOST,
@@ -37,7 +69,7 @@ if (hasMySQL) {
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       // Entity'leri explicit olarak belirt (Vercel uyumluluğu için)
-      entities: Call ? [EventHistory, Call] : [EventHistory],
+      entities: entities,
       synchronize: true, // Production'da false yapın ve migration kullanın
       logging: process.env.DB_LOGGING === 'true',
       charset: 'utf8mb4',
@@ -64,12 +96,21 @@ else if (!isProduction) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
 
+    // Entity kontrolü
+    if (!EventHistory) {
+      logger.error('❌ EventHistory entity import edilemedi - SQLite bağlantısı oluşturulamıyor');
+      throw new Error('EventHistory entity bulunamadı');
+    }
+    
+    const entities = Call ? [EventHistory, Call] : [EventHistory];
+    logger.info(`SQLite için ${entities.length} entity yüklenecek: ${entities.map(e => e.options?.name || 'unknown').join(', ')}`);
+    
     // SQLite veritabanı bağlantısı
     AppDataSource = new DataSource({
       type: 'sqlite',
       database: path.join(dataDir, 'database.sqlite'),
       // Entity'leri explicit olarak belirt (Vercel uyumluluğu için)
-      entities: Call ? [EventHistory, Call] : [EventHistory],
+      entities: entities,
       synchronize: true,
       logging: false,
     });
