@@ -22,6 +22,78 @@ try {
   logger.error('EventHistory modülü yüklenirken hata:', { message: error.message });
 }
 
+// Twilio Webhook Signature Validation (Güvenlik)
+function validateTwilioWebhook(req) {
+  const twilioSignature = req.headers['x-twilio-signature'];
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  
+  // Eğer TWILIO_AUTH_TOKEN yoksa, validation devre dışı (development)
+  if (!authToken) {
+    logger.warn('⚠️ [SECURITY] TWILIO_AUTH_TOKEN tanımlı değil - Webhook validation atlanıyor (sadece development!)');
+    return true; // Development için izin ver
+  }
+  
+  // Signature yoksa reddet
+  if (!twilioSignature) {
+    logger.warn('⚠️ [SECURITY] Twilio webhook signature eksik - Request reddedildi');
+    return false;
+  }
+  
+  // Twilio URL'ini al (production için)
+  const webhookUrl = process.env.WEBHOOK_BASE_URL || process.env.NGROK_URL || '';
+  const fullUrl = `${webhookUrl}${req.originalUrl}`;
+  
+  // Twilio form-encoded body format'ını al
+  // Express body-parser form-encoded body'yi parse ediyor, ama Twilio raw body ister
+  // Bu yüzden parse edilmiş body'den tekrar form-encoded string oluşturuyoruz
+  let body = '';
+  if (req.body) {
+    if (typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+      // Twilio form-encoded format: key=value&key2=value2 (sorted)
+      // Twilio validation için key'leri alfabetik sıraya göre sırala
+      const sortedKeys = Object.keys(req.body).sort();
+      body = sortedKeys
+        .map(key => {
+          const value = req.body[key];
+          // Array ise her eleman için tekrar et
+          if (Array.isArray(value)) {
+            return value.map(v => `${key}=${encodeURIComponent(v)}`).join('&');
+          }
+          return `${key}=${encodeURIComponent(value)}`;
+        })
+        .join('&');
+    } else if (Buffer.isBuffer(req.body)) {
+      // Raw body buffer ise direkt kullan
+      body = req.body.toString('utf8');
+    } else {
+      body = String(req.body);
+    }
+  }
+  
+  // Twilio signature validation
+  try {
+    // Twilio.validateRequest form-encoded body string bekler
+    const isValid = twilio.validateRequest(
+      authToken,
+      twilioSignature,
+      fullUrl,
+      body || ''
+    );
+    
+    if (!isValid) {
+      logger.warn('⚠️ [SECURITY] Geçersiz Twilio webhook signature - Request reddedildi', {
+        url: fullUrl,
+        hasBody: !!body
+      });
+    }
+    
+    return isValid;
+  } catch (error) {
+    logger.error('❌ [SECURITY] Twilio webhook validation hatası:', { message: error.message });
+    return false; // Hata durumunda güvenli tarafta kal
+  }
+}
+
 // Event History'ye kaydetme fonksiyonu
 async function saveEventHistory(eventType, eventData) {
   if (!database || !database.AppDataSource || !EventHistory) {
@@ -336,6 +408,12 @@ router.post('/start-bulk', async (req, res) => {
 // Flow webhook
 router.post('/webhooks/flow', async (req, res) => {
   try {
+    // Güvenlik: Twilio webhook signature validation
+    if (!validateTwilioWebhook(req)) {
+      logger.warn('⚠️ [SECURITY] Flow webhook - Geçersiz signature, request reddedildi');
+      return res.status(403).json({ error: 'Invalid webhook signature' });
+    }
+    
     logger.info('Flow Webhook - Gelen veri:', { body: req.body });
     
     // Event history'ye kaydet
@@ -350,10 +428,17 @@ router.post('/webhooks/flow', async (req, res) => {
 
 // Status webhook
 router.post('/webhooks/status', async (req, res) => {
-  logger.info('Status webhook alındı:', { body: req.body });
-  
-  // Event history'ye kaydet
-  await saveEventHistory('status', req.body);
+  try {
+    // Güvenlik: Twilio webhook signature validation
+    if (!validateTwilioWebhook(req)) {
+      logger.warn('⚠️ [SECURITY] Status webhook - Geçersiz signature, request reddedildi');
+      return res.status(403).json({ error: 'Invalid webhook signature' });
+    }
+    
+    logger.info('Status webhook alındı:', { body: req.body });
+    
+    // Event history'ye kaydet
+    await saveEventHistory('status', req.body);
   
   // Webhook'tan çağrı durumunu al
   const callStatus = req.body.CallStatus;
@@ -383,11 +468,21 @@ router.post('/webhooks/status', async (req, res) => {
   }
   
   res.status(200).send('OK');
+  } catch (error) {
+    logger.error('Status webhook hatası:', { error });
+    res.sendStatus(500);
+  }
 });
 
 // DTMF webhook
 router.post('/webhooks/dtmf', async (req, res) => {
   try {
+    // Güvenlik: Twilio webhook signature validation
+    if (!validateTwilioWebhook(req)) {
+      logger.warn('⚠️ [SECURITY] DTMF webhook - Geçersiz signature, request reddedildi');
+      return res.status(403).json({ error: 'Invalid webhook signature' });
+    }
+    
     logger.info('DTMF Webhook - Gelen veri:', { body: req.body });
     
     // Event history'ye kaydet
@@ -832,8 +927,9 @@ router.get('/daily-summary', async (req, res) => {
     const dailySummaryClient = twilio(dailySummaryAccountSid, dailySummaryAuthToken);
     
     logger.info('Daily Summary için ayrı Twilio client oluşturuldu');
-    logger.debug(`Daily Summary Account SID: ${dailySummaryAccountSid.substring(0, 10)}...`);
-    logger.debug(`Daily Summary Phone Number: ${dailySummaryPhoneNumber}`);
+    // Güvenlik: Account SID'nin tamamını loglama (sadece uzunluk bilgisi)
+    logger.debug(`Daily Summary Account SID: Tanımlı (${dailySummaryAccountSid ? dailySummaryAccountSid.length : 0} karakter)`);
+    logger.debug(`Daily Summary Phone Number: ${dailySummaryPhoneNumber ? 'Tanımlı' : 'Tanımlı değil'}`);
 
     // Tarih parametresini al veya bugünü kullan
     const dateParam = req.query.date;
