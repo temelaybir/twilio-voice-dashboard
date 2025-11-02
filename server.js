@@ -262,40 +262,58 @@ app.use('/api/calls', require('./routes/voice'));
 // Static files (API routes'tan SONRA!)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Ana fonksiyon
+// Webhook base URL'ini temizle (trailing slash kaldır)
+const cleanWebhookUrl = WEBHOOK_BASE_URL.endsWith('/') 
+  ? WEBHOOK_BASE_URL.slice(0, -1) 
+  : WEBHOOK_BASE_URL;
+
+// Sunucu konfigürasyonu (hemen oluştur - Vercel için)
+const config = {
+  port: process.env.PORT || 3001,
+  webhookBaseUrl: cleanWebhookUrl,
+  webhooks: {
+    flow: `${cleanWebhookUrl}/api/calls/webhooks/flow`,
+    status: `${cleanWebhookUrl}/api/calls/webhooks/status`,
+    dtmf: `${cleanWebhookUrl}/api/calls/webhooks/dtmf`
+  },
+  environment: process.env.NODE_ENV || 'development'
+};
+
+// Global olarak erişilebilir yap (webhook URL'leri için)
+global.webhookConfig = config;
+global.config = config;
+
+// Veritabanını lazy initialize et (Vercel'de cold start sırasında sorun olabilir)
+let dbInitialized = false;
+async function initializeDatabaseIfNeeded() {
+  if (dbInitialized) return;
+  
+  if (database && database.initializeDatabase) {
+    try {
+      const initialized = await database.initializeDatabase();
+      if (!initialized) {
+        logger.warn('⚠️ Veritabanı başlatılamadı, API-only modda devam ediliyor');
+      } else {
+        dbInitialized = true;
+      }
+    } catch (dbError) {
+      logger.error('❌ Veritabanı bağlantı hatası:', { 
+        message: dbError.message,
+        stack: dbError.stack 
+      });
+      logger.warn('⚠️ API-only modda devam ediliyor (database olmadan)');
+    }
+  }
+}
+
+// Ana fonksiyon (sadece local development için)
 async function startServer() {
   try {
-    // Webhook base URL'ini temizle (trailing slash kaldır)
-    const cleanWebhookUrl = WEBHOOK_BASE_URL.endsWith('/') 
-      ? WEBHOOK_BASE_URL.slice(0, -1) 
-      : WEBHOOK_BASE_URL;
+    // Veritabanını başlat (local development için)
+    await initializeDatabaseIfNeeded();
 
-    // Sunucu konfigürasyonu
-    const config = {
-      port: process.env.PORT || 3001,
-      webhookBaseUrl: cleanWebhookUrl,
-      webhooks: {
-        flow: `${cleanWebhookUrl}/api/calls/webhooks/flow`,
-        status: `${cleanWebhookUrl}/api/calls/webhooks/status`,
-        dtmf: `${cleanWebhookUrl}/api/calls/webhooks/dtmf`
-      },
-      environment: process.env.NODE_ENV || 'development'
-    };
-
-    // Global olarak erişilebilir yap (webhook URL'leri için)
-    global.webhookConfig = config;
-
-    // Veritabanını başlat (varsa)
-    if (database && database.initializeDatabase) {
-      const dbInitialized = await database.initializeDatabase();
-      if (!dbInitialized) {
-        logger.warn('⚠️ Veritabanı başlatılamadı, API-only modda devam ediliyor');
-      }
-    } else {
-      logger.warn('Veritabanı olmadan devam ediliyor');
-    }
-
-    // Server'ı başlat
+    // Server'ı başlat (sadece local development için)
+    // Vercel'de app.listen() çalışmaz, Vercel kendi server'ını kullanır
     app.listen(config.port, () => {
       logger.info(`✅ Server running on port ${config.port}`);
       logger.info(`Environment: ${config.environment}`);
@@ -314,12 +332,16 @@ async function startServer() {
       }
     });
 
-    // Global config'i export et
-    global.config = config;
+    // Vercel'de bu log'lar çalışmayacak
+    if (process.env.VERCEL === '1' || process.env.VERCEL_ENV) {
+      logger.info('🚀 Vercel Serverless Function mode');
+      logger.info(`Webhook Base URL: ${config.webhookBaseUrl}`);
+    }
 
     // Günlük Email Raporu Scheduler - Türkiye saati ile 23:59'da
     // node-cron timezone desteği ile Türkiye saati (Europe/Istanbul)
-    if (process.env.ENABLE_DAILY_EMAIL !== 'false') {
+    // Vercel'de cron job'lar çalışmaz, sadece local/standalone server'larda
+    if (process.env.ENABLE_DAILY_EMAIL !== 'false' && process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
       // Cron job'ı tanımla
       const emailJob = cron.schedule('59 23 * * *', async () => {
         logger.info('📧 Günlük email raporu gönderiliyor (Türkiye saati: 23:59)...');
@@ -414,5 +436,12 @@ async function startServer() {
   }
 }
 
-// Server'ı başlat
-startServer(); 
+// Vercel Serverless Functions için export
+// Vercel'de app.listen() çalışmaz, sadece app'i export ediyoruz
+module.exports = app;
+
+// Local development için server'ı başlat
+// Vercel'de bu çalışmayacak (environment variable kontrolü ile)
+if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+  startServer();
+} 
