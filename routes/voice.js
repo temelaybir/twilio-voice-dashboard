@@ -757,6 +757,15 @@ router.get('/history/:executionSid', async (req, res) => {
       });
     }
 
+    // Database initialize kontrolü
+    const isInitialized = await ensureDatabaseInitialized();
+    if (!isInitialized) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database başlatılamadı'
+      });
+    }
+
     const { executionSid } = req.params;
     const eventRepository = database.AppDataSource.getRepository(EventHistory);
     
