@@ -13,6 +13,10 @@ lerna-debug.log
 .env.production
 .env.test
 
+# Scripts (güvenlik - production script'leri gizle)
+scripts/
+!scripts/.gitkeep
+
 # Veritabanı
 data/*.sqlite
 data/*.sqlite-journal
