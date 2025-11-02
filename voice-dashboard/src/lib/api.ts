@@ -1,6 +1,21 @@
 'use client'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+// API URL formatını düzelt: /api varsa bırak, yoksa ekle
+const getApiBaseUrl = () => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  // Eğer zaten /api ile bitiyorsa, olduğu gibi kullan
+  if (envUrl.endsWith('/api')) {
+    return envUrl
+  }
+  // Eğer /api/ ile bitiyorsa, sadece /api yap
+  if (envUrl.endsWith('/api/')) {
+    return envUrl.slice(0, -1) // Son / karakterini kaldır
+  }
+  // Eğer /api yoksa, ekle
+  return `${envUrl.replace(/\/$/, '')}/api`
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 export async function startCall(phoneNumber: string) {
   try {
