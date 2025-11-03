@@ -12,16 +12,45 @@ const { exec } = require('child_process');
 // Lazy require: daily-email-report.js sadece gerektiğinde yüklenecek
 // Vercel'de build sırasında sorun çıkmasın diye
 let dailyEmailReport = null;
+let moduleLoadError = null;
 function getDailyEmailReport() {
-  if (!dailyEmailReport) {
+  if (!dailyEmailReport && !moduleLoadError) {
     try {
+      // Önce dosya varlığını kontrol et
+      const scriptPath = path.join(__dirname, 'scripts', 'daily-email-report.js');
+      if (!fs.existsSync(scriptPath)) {
+        const errorMsg = `Dosya bulunamadı: ${scriptPath} (__dirname: ${__dirname})`;
+        logger.error('❌ daily-email-report.js dosyası bulunamadı:', { 
+          path: scriptPath,
+          dirname: __dirname,
+          files: fs.readdirSync(path.join(__dirname, 'scripts')).join(', ')
+        });
+        moduleLoadError = errorMsg;
+        return null;
+      }
+      
+      // Modülü yükle
       dailyEmailReport = require('./scripts/daily-email-report.js');
+      logger.info('✅ daily-email-report.js modülü başarıyla yüklendi');
     } catch (error) {
-      logger.error('❌ daily-email-report.js yüklenemedi:', { message: error.message });
+      const errorMsg = `Modül yükleme hatası: ${error.message}`;
+      logger.error('❌ daily-email-report.js yüklenemedi:', { 
+        message: error.message,
+        stack: error.stack,
+        dirname: __dirname,
+        path: path.join(__dirname, 'scripts', 'daily-email-report.js')
+      });
+      moduleLoadError = errorMsg;
       // Fallback: email gönderme devre dışı
       return null;
     }
   }
+  
+  // Eğer daha önce hata varsa, null dön
+  if (moduleLoadError) {
+    return null;
+  }
+  
   return dailyEmailReport;
 }
 
@@ -177,9 +206,19 @@ app.post('/api/daily-email', async (req, res) => {
     // Lazy load email report module
     const emailReport = getDailyEmailReport();
     if (!emailReport) {
+      const errorDetails = moduleLoadError || 'daily-email-report.js module not found or could not be loaded';
+      logger.error('❌ [DAILY EMAIL] Modül yüklenemedi:', { 
+        error: errorDetails,
+        dirname: __dirname,
+        scriptPath: path.join(__dirname, 'scripts', 'daily-email-report.js')
+      });
       return res.status(503).json({
         error: 'Email service unavailable',
-        message: 'daily-email-report.js module not found or could not be loaded'
+        message: errorDetails,
+        debug: process.env.NODE_ENV === 'development' ? {
+          dirname: __dirname,
+          scriptPath: path.join(__dirname, 'scripts', 'daily-email-report.js')
+        } : undefined
       });
     }
     
