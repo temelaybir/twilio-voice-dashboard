@@ -15,33 +15,47 @@ let dailyEmailReport = null;
 let moduleLoadError = null;
 function getDailyEmailReport() {
   if (!dailyEmailReport && !moduleLoadError) {
-    try {
-      // Önce dosya varlığını kontrol et
-      const scriptPath = path.join(__dirname, 'scripts', 'daily-email-report.js');
-      if (!fs.existsSync(scriptPath)) {
-        const errorMsg = `Dosya bulunamadı: ${scriptPath} (__dirname: ${__dirname})`;
-        logger.error('❌ daily-email-report.js dosyası bulunamadı:', { 
-          path: scriptPath,
-          dirname: __dirname,
-          files: fs.readdirSync(path.join(__dirname, 'scripts')).join(', ')
-        });
-        moduleLoadError = errorMsg;
-        return null;
+    // Olası dosya yollarını dene (Vercel için fallback)
+    const possiblePaths = [
+      path.join(__dirname, 'scripts', 'daily-email-report.js'),  // Normal path
+      path.join(__dirname, 'daily-email-report.js'),            // Root dizin (Vercel fallback)
+    ];
+    
+    let loadedPath = null;
+    let lastError = null;
+    
+    for (const scriptPath of possiblePaths) {
+      try {
+        // Dosya varlığını kontrol et
+        if (fs.existsSync(scriptPath)) {
+          // Modülü yükle
+          dailyEmailReport = require(scriptPath);
+          loadedPath = scriptPath;
+          logger.info(`✅ daily-email-report.js modülü başarıyla yüklendi: ${scriptPath}`);
+          break;
+        }
+      } catch (error) {
+        lastError = error;
+        logger.warn(`⚠️ Yol deneniyor: ${scriptPath} - ${error.message}`);
+        continue;
       }
+    }
+    
+    // Hiçbir yol çalışmadıysa hata kaydet
+    if (!dailyEmailReport) {
+      const errorMsg = lastError 
+        ? `Modül yükleme hatası: ${lastError.message}` 
+        : `Dosya bulunamadı. Denenen yollar: ${possiblePaths.join(', ')}`;
       
-      // Modülü yükle
-      dailyEmailReport = require('./scripts/daily-email-report.js');
-      logger.info('✅ daily-email-report.js modülü başarıyla yüklendi');
-    } catch (error) {
-      const errorMsg = `Modül yükleme hatası: ${error.message}`;
       logger.error('❌ daily-email-report.js yüklenemedi:', { 
-        message: error.message,
-        stack: error.stack,
+        error: errorMsg,
+        lastError: lastError ? lastError.message : null,
         dirname: __dirname,
-        path: path.join(__dirname, 'scripts', 'daily-email-report.js')
+        triedPaths: possiblePaths,
+        filesInRoot: fs.existsSync(__dirname) ? fs.readdirSync(__dirname).filter(f => !f.startsWith('.') && f !== 'node_modules' && !f.includes('voice-dashboard')).slice(0, 10).join(', ') : 'N/A'
       });
+      
       moduleLoadError = errorMsg;
-      // Fallback: email gönderme devre dışı
       return null;
     }
   }
