@@ -7,7 +7,8 @@
       "config": {
         "includeFiles": [
           "scripts/**",
-          "config/**"
+          "config/**",
+          "daily-email-report.js"
         ]
       }
     }

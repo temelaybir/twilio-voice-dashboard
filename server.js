@@ -16,9 +16,10 @@ let moduleLoadError = null;
 function getDailyEmailReport() {
   if (!dailyEmailReport && !moduleLoadError) {
     // Olası dosya yollarını dene (Vercel için fallback)
+    // Root dizini önce dene çünkü Vercel'de her zaman mevcut
     const possiblePaths = [
-      path.join(__dirname, 'scripts', 'daily-email-report.js'),  // Normal path
-      path.join(__dirname, 'daily-email-report.js'),            // Root dizin (Vercel fallback)
+      path.join(__dirname, 'daily-email-report.js'),            // Root dizin (Vercel için öncelikli)
+      path.join(__dirname, 'scripts', 'daily-email-report.js'),  // Normal path (local development)
     ];
     
     let loadedPath = null;
