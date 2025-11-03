@@ -702,9 +702,9 @@ router.get('/history', async (req, res) => {
           status: call.status,
           lastActivity: Number(call.lastActivity) || Date.now(), // BIGINT'i number'a çevir
           createdAt: call.createdAt,
-          dtmfActions: events.filter(e => e.eventType === 'dtmf' && e.action).map(e => ({
+          dtmfActions: events.filter(e => e.eventType === 'dtmf' && e.dtmfDigits).map(e => ({
             digits: e.dtmfDigits,
-            action: e.action,
+            action: e.action || null, // Action olmayan tuşlamalar için null
             timestamp: Number(e.timestamp) // BIGINT'i number'a çevir
           })),
           events: events.map(e => ({
@@ -947,9 +947,9 @@ router.get('/history/export/all', async (req, res) => {
           status: call.status,
           lastActivity: Number(call.lastActivity) || Date.now(), // BIGINT'i number'a çevir
           createdAt: call.createdAt,
-          dtmfActions: events.filter(e => e.eventType === 'dtmf' && e.action).map(e => ({
+          dtmfActions: events.filter(e => e.eventType === 'dtmf' && e.dtmfDigits).map(e => ({
             digits: e.dtmfDigits,
-            action: e.action,
+            action: e.action || null, // Action olmayan tuşlamalar için null
             timestamp: Number(e.timestamp) // BIGINT'i number'a çevir
           })),
           events: events.map(e => ({

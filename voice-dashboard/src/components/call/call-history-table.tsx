@@ -73,7 +73,17 @@ export function CallHistoryTable({
     }
   }
 
-  const getActionBadge = (action: DTMFActionType) => {
+  const getActionBadge = (action: DTMFActionType | null, digits?: string) => {
+    if (!action) {
+      // Action olmayan DTMF tuşlamaları için sadece rakamları göster
+      return (
+        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+          <Hash className="w-3 h-3 mr-1" />
+          {digits || 'Tuş'}
+        </Badge>
+      )
+    }
+    
     switch (action) {
       case 'confirm_appointment':
         return (
@@ -366,7 +376,7 @@ export function CallHistoryTable({
                     {call.dtmfActions.length > 0 ? (
                       call.dtmfActions.map((dtmf, index) => (
                         <div key={index}>
-                          {getActionBadge(dtmf.action as DTMFActionType)}
+                          {getActionBadge(dtmf.action as DTMFActionType | null, dtmf.digits)}
                         </div>
                       ))
                     ) : (

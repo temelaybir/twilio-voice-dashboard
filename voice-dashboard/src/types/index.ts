@@ -11,7 +11,7 @@ export interface CallHistoryEvent {
 
 export interface DTMFAction {
   digits: string
-  action: string
+  action: string | null
   timestamp: number
 }
 
