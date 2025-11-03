@@ -171,4 +171,45 @@ export interface DailySummaryResponse {
   calls: DailySummaryCalls
 }
 
-export type CallDirection = 'all' | 'inbound' | 'outbound' 
+export type CallDirection = 'all' | 'inbound' | 'outbound'
+
+// Monthly Summary Types
+export interface MonthlyDayStats {
+  date: string
+  day: number
+  inbound: {
+    total: number
+    answered: number
+    missed: number
+  }
+  outbound: {
+    total: number
+    completed: number
+    failed: number
+  }
+  totalCalls: number
+  error?: string
+}
+
+export interface MonthlyTotals {
+  totalCalls: number
+  inbound: {
+    total: number
+    answered: number
+    missed: number
+  }
+  outbound: {
+    total: number
+    completed: number
+    failed: number
+  }
+}
+
+export interface MonthlySummaryResponse {
+  success: boolean
+  year: number
+  month: number
+  monthName: string
+  days: MonthlyDayStats[]
+  totals: MonthlyTotals
+} 

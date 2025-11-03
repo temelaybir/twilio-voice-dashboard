@@ -214,4 +214,40 @@ export async function getDailySummary(date?: string, direction: 'all' | 'inbound
   } catch (error) {
     throw error
   }
+}
+
+/**
+ * Aylık çağrı özetini getirir
+ * 
+ * @param year - Yıl (opsiyonel, varsayılan: bu yıl)
+ * @param month - Ay (1-12, opsiyonel, varsayılan: bu ay)
+ * @returns Promise with monthly summary data
+ * @throws Error if the request fails
+ */
+export async function getMonthlySummary(year?: number, month?: number) {
+  try {
+    const params = new URLSearchParams()
+    if (year) params.append('year', year.toString())
+    if (month) params.append('month', month.toString())
+    
+    const queryString = params.toString()
+    const url = `${API_BASE_URL}/calls/monthly-summary${queryString ? `?${queryString}` : ''}`
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP ${response.status}`)
+    }
+    
+    return data
+  } catch (error) {
+    throw error
+  }
 } 

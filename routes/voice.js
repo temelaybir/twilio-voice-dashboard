@@ -1289,4 +1289,165 @@ router.get('/daily-summary', async (req, res) => {
   }
 });
 
+/**
+ * Aylık çağrı özeti endpoint'i - Bir ayın tüm günlerini döndürür
+ * Query params:
+ *  - year: YYYY formatında yıl (opsiyonel, varsayılan: bu yıl)
+ *  - month: MM formatında ay (opsiyonel, varsayılan: bu ay)
+ */
+router.get('/monthly-summary', async (req, res) => {
+  try {
+    // Daily Summary için özel Twilio client oluştur
+    const dailySummaryAccountSid = process.env.TWILIO_DAILY_SUMMARY_ACCOUNT_SID;
+    const dailySummaryAuthToken = process.env.TWILIO_DAILY_SUMMARY_AUTH_TOKEN;
+    const dailySummaryPhoneNumber = process.env.TWILIO_DAILY_SUMMARY_PHONE_NUMBER;
+    
+    if (!dailySummaryAccountSid || !dailySummaryAuthToken) {
+      throw new Error('Daily Summary için Twilio kimlik bilgileri tanımlanmamış');
+    }
+    
+    if (!dailySummaryPhoneNumber) {
+      throw new Error('Daily Summary için telefon numarası tanımlanmamış');
+    }
+    
+    const dailySummaryClient = twilio(dailySummaryAccountSid, dailySummaryAuthToken);
+    
+    // Yıl ve ay parametrelerini al
+    const now = new Date();
+    const year = parseInt(req.query.year) || now.getFullYear();
+    const month = parseInt(req.query.month) || (now.getMonth() + 1);
+    
+    // Ayın ilk ve son günlerini hesapla
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+    const daysInMonth = lastDay.getDate();
+    
+    logger.info(`Aylık özet çekiliyor: ${year}-${month}, numara: ${dailySummaryPhoneNumber}`);
+    logger.info(`Tarih aralığı: ${firstDay.toISOString().split('T')[0]} - ${lastDay.toISOString().split('T')[0]}`);
+    
+    // Her gün için özet çek
+    const monthlyData = [];
+    const promises = [];
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const targetDate = new Date(year, month - 1, day);
+      const dateStr = targetDate.toISOString().split('T')[0];
+      
+      // Her gün için promise oluştur
+      promises.push(
+        (async () => {
+          try {
+            // Günün başlangıç ve bitiş zamanları
+            const startTime = new Date(targetDate);
+            startTime.setHours(0, 0, 0, 0);
+            
+            const endTime = new Date(targetDate);
+            endTime.setHours(23, 59, 59, 999);
+            
+            // Inbound çağrılar
+            const inboundCalls = await dailySummaryClient.calls.list({
+              to: dailySummaryPhoneNumber,
+              startTimeAfter: startTime,
+              startTimeBefore: endTime,
+              limit: 1000
+            });
+            
+            // Outbound çağrılar - önce belirli numaradan arayanlar
+            let outboundCalls = await dailySummaryClient.calls.list({
+              from: dailySummaryPhoneNumber,
+              startTimeAfter: startTime,
+              startTimeBefore: endTime,
+              limit: 1000
+            });
+            
+            // Eğer from ile bulunamazsa, tüm outbound çağrıları çek (API çağrıları)
+            if (outboundCalls.length === 0) {
+              const allOutbound = await dailySummaryClient.calls.list({
+                startTimeAfter: startTime,
+                startTimeBefore: endTime,
+                limit: 1000
+              });
+              
+              // Sadece outbound-api çağrılarını filtrele
+              outboundCalls = allOutbound.filter(call => 
+                call.direction === 'outbound-api'
+              );
+            }
+            
+            // İstatistikleri hesapla
+            const inboundStats = {
+              total: inboundCalls.length,
+              answered: inboundCalls.filter(c => c.status === 'completed').length,
+              missed: inboundCalls.filter(c => c.status !== 'completed').length,
+            };
+            
+            const outboundStats = {
+              total: outboundCalls.length,
+              completed: outboundCalls.filter(c => c.status === 'completed').length,
+              failed: outboundCalls.filter(c => c.status !== 'completed').length,
+            };
+            
+            return {
+              date: dateStr,
+              day: day,
+              inbound: inboundStats,
+              outbound: outboundStats,
+              totalCalls: inboundStats.total + outboundStats.total
+            };
+          } catch (error) {
+            logger.error(`Gün ${day} için hata:`, { message: error.message });
+            return {
+              date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+              day: day,
+              inbound: { total: 0, answered: 0, missed: 0 },
+              outbound: { total: 0, completed: 0, failed: 0 },
+              totalCalls: 0,
+              error: error.message
+            };
+          }
+        })()
+      );
+    }
+    
+    // Tüm günlerin verilerini bekle
+    const results = await Promise.all(promises);
+    monthlyData.push(...results);
+    
+    // Toplam istatistikler
+    const totalStats = monthlyData.reduce((acc, day) => ({
+      totalCalls: acc.totalCalls + day.totalCalls,
+      inbound: {
+        total: acc.inbound.total + day.inbound.total,
+        answered: acc.inbound.answered + day.inbound.answered,
+        missed: acc.inbound.missed + day.inbound.missed
+      },
+      outbound: {
+        total: acc.outbound.total + day.outbound.total,
+        completed: acc.outbound.completed + day.outbound.completed,
+        failed: acc.outbound.failed + day.outbound.failed
+      }
+    }), {
+      totalCalls: 0,
+      inbound: { total: 0, answered: 0, missed: 0 },
+      outbound: { total: 0, completed: 0, failed: 0 }
+    });
+    
+    res.json({
+      success: true,
+      year: year,
+      month: month,
+      monthName: new Date(year, month - 1, 1).toLocaleString('tr-TR', { month: 'long' }),
+      days: monthlyData,
+      totals: totalStats
+    });
+    
+  } catch (error) {
+    logger.error('Aylık özet hatası:', { message: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 

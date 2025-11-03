@@ -6,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { RefreshCw, AlertCircle, TrendingUp, ArrowLeft } from 'lucide-react'
+import { RefreshCw, AlertCircle, TrendingUp, ArrowLeft, BarChart3 } from 'lucide-react'
 
 import { getDailySummary } from '@/lib/api'
 import { SummaryStatsCards } from '@/components/call-summary/summary-stats-cards'
 import { SummaryCallsTable } from '@/components/call-summary/summary-calls-table'
 import { DateFilter } from '@/components/call-summary/date-filter'
+import { MonthlyStatsCalendar } from '@/components/call-summary/monthly-stats-calendar'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 import type { DailySummaryResponse } from '@/types'
 
@@ -29,6 +31,7 @@ export default function CallSummaryPage() {
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [isMounted, setIsMounted] = useState(false)
+  const [showMonthlyStats, setShowMonthlyStats] = useState(false)
 
   // Veriyi çek
   const fetchSummary = async (date: string) => {
@@ -105,6 +108,15 @@ export default function CallSummaryPage() {
             <div className="text-sm text-muted-foreground" suppressHydrationWarning>
               Son Güncelleme: {isMounted ? formatLastRefresh() : '--:--:--'}
             </div>
+            <Button
+              onClick={() => setShowMonthlyStats(true)}
+              size="sm"
+              variant="default"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              İstatistikleri Gör
+            </Button>
             <Button
               onClick={handleRefresh}
               disabled={loading}
@@ -242,6 +254,15 @@ export default function CallSummaryPage() {
           </div>
         </div>
       </div>
+
+      {/* Aylık İstatistikler Modal */}
+      <Dialog open={showMonthlyStats} onOpenChange={setShowMonthlyStats}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0">
+          <div className="p-6">
+            <MonthlyStatsCalendar onClose={() => setShowMonthlyStats(false)} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
