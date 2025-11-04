@@ -13,7 +13,6 @@ import { SummaryStatsCards } from '@/components/call-summary/summary-stats-cards
 import { SummaryCallsTable } from '@/components/call-summary/summary-calls-table'
 import { DateFilter } from '@/components/call-summary/date-filter'
 import { MonthlyStatsCalendar } from '@/components/call-summary/monthly-stats-calendar'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 import type { DailySummaryResponse } from '@/types'
 
@@ -255,14 +254,50 @@ export default function CallSummaryPage() {
         </div>
       </div>
 
-      {/* Aylık İstatistikler Modal */}
-      <Dialog open={showMonthlyStats} onOpenChange={setShowMonthlyStats}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0">
-          <div className="p-6">
+      {/* Aylık İstatistikler Modal - Fullpage */}
+      {showMonthlyStats && (
+        <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+          <div className="container mx-auto p-6 max-w-6xl space-y-6">
+            {/* Header - Modal içinde */}
+            <div className="flex items-center justify-between pt-4">
+              <div className="flex items-center gap-4">
+                <Link href="/">
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    Ana Sayfa
+                  </Button>
+                </Link>
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+                    📊 Aylık Çağrı İstatistikleri
+                    <Badge variant="outline" className="text-xs">
+                      Happy Smile Clinics
+                    </Badge>
+                  </h1>
+                  <p className="text-muted-foreground mt-1">
+                    Aylık takvim görünümü ile çağrı analizi
+                  </p>
+                </div>
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMonthlyStats(false)}
+                className="flex items-center gap-2"
+              >
+                <span>✕</span>
+                Kapat
+              </Button>
+            </div>
+
+            <Separator />
+
+            {/* Takvim */}
             <MonthlyStatsCalendar onClose={() => setShowMonthlyStats(false)} />
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   )
 }

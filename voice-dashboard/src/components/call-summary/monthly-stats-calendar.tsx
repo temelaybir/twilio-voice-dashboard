@@ -137,11 +137,6 @@ export function MonthlyStatsCalendar({ year, month, onClose }: MonthlyStatsCalen
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
-            {onClose && (
-              <Button variant="outline" size="sm" onClick={onClose}>
-                Kapat
-              </Button>
-            )}
           </div>
         </div>
       <div>
@@ -183,58 +178,62 @@ export function MonthlyStatsCalendar({ year, month, onClose }: MonthlyStatsCalen
               </div>
             </div>
 
-            {/* Takvim Grid */}
-            <div className="grid grid-cols-7 gap-2">
-              {/* Hafta günleri başlıkları */}
-              {weekDays.map((day) => (
-                <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
-                  {day}
-                </div>
-              ))}
-
-              {/* Boş hücreler (ayın ilk gününden önceki günler) */}
-              {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                <div key={`empty-${i}`} className="aspect-square" />
-              ))}
-
-              {/* Günler */}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1
-                const dayData = getDayData(day)
-                const totalCalls = dayData?.totalCalls || 0
-
-                return (
-                  <div
-                    key={day}
-                    className={`
-                      aspect-square border rounded-lg p-2 cursor-pointer transition-all
-                      ${getColorLevel(totalCalls)}
-                      ${totalCalls === 0 ? 'border-gray-200' : 'border-blue-300'}
-                      relative
-                    `}
-                    onMouseEnter={(e) => handleDayMouseEnter(e, day)}
-                    onMouseLeave={handleDayMouseLeave}
-                    onMouseMove={handleDayMouseMove}
-                  >
-                    <div className="text-sm font-medium">{day}</div>
-                    {totalCalls > 0 && (
-                      <div className="text-xs mt-1 opacity-90">{totalCalls}</div>
-                    )}
+            {/* Takvim Grid - Relative container for tooltip */}
+            <div className="relative">
+              <div className="grid grid-cols-7 gap-2">
+                {/* Hafta günleri başlıkları */}
+                {weekDays.map((day) => (
+                  <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
+                    {day}
                   </div>
-                )
-              })}
-            </div>
+                ))}
 
-            {/* Hover Tooltip */}
-            {hoveredDay && hoverPosition && (
-              <div
-                className="fixed z-50 bg-gray-900 text-white p-4 rounded-lg shadow-lg pointer-events-none"
-                style={{
-                  left: `${hoverPosition.x + 10}px`,
-                  top: `${hoverPosition.y + 10}px`,
-                  transform: 'translateX(0)',
-                }}
-              >
+                {/* Boş hücreler (ayın ilk gününden önceki günler) */}
+                {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                  <div key={`empty-${i}`} className="aspect-square" />
+                ))}
+
+                {/* Günler */}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const day = i + 1
+                  const dayData = getDayData(day)
+                  const totalCalls = dayData?.totalCalls || 0
+
+                  return (
+                    <div
+                      key={day}
+                      className={`
+                        aspect-square border rounded-lg p-2 cursor-pointer transition-all
+                        ${getColorLevel(totalCalls)}
+                        ${totalCalls === 0 ? 'border-gray-200' : 'border-blue-300'}
+                      `}
+                      onMouseEnter={(e) => handleDayMouseEnter(e, day)}
+                      onMouseLeave={handleDayMouseLeave}
+                      onMouseMove={handleDayMouseMove}
+                    >
+                      <div className="text-sm font-medium">{day}</div>
+                      {totalCalls > 0 && (
+                        <div className="text-xs mt-1 opacity-90">{totalCalls}</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Hover Tooltip - Positioned relative to calendar container */}
+              {hoveredDay && hoverPosition && (
+                <div
+                  className="fixed z-[60] bg-gray-900 text-white p-4 rounded-lg shadow-xl pointer-events-none"
+                  style={{
+                    left: hoverPosition.x + 220 > window.innerWidth
+                      ? `${hoverPosition.x - 230}px`
+                      : `${hoverPosition.x + 15}px`,
+                    top: hoverPosition.y + 200 > window.innerHeight
+                      ? `${hoverPosition.y - 190}px`
+                      : `${hoverPosition.y + 15}px`,
+                    maxWidth: '220px',
+                  }}
+                >
                 <div className="text-sm font-semibold mb-2">
                   {hoveredDay.date}
                 </div>
@@ -269,7 +268,8 @@ export function MonthlyStatsCalendar({ year, month, onClose }: MonthlyStatsCalen
                   </div>
                 </div>
               </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>

@@ -1370,9 +1370,26 @@ router.get('/monthly-summary', async (req, res) => {
               
               // Sadece outbound-api çağrılarını filtrele
               outboundCalls = allOutbound.filter(call => 
-                call.direction === 'outbound-api'
+                call.direction === 'outbound-api' || 
+                call.direction === 'outbound-dial' ||
+                call.direction.includes('outbound')
               );
             }
+            
+            // Outbound için dahili yönlendirme numaralarını filtrele
+            // +447707964726 gibi Studio Flow dahili yönlendirme numaraları gerçek çağrı değil
+            const INTERNAL_REDIRECT_NUMBERS = ['+447707964726'];
+            
+            // Outbound çağrıları filtrele:
+            // 1. parentCallSid olan çağrılar (gerçek müşteri çağrıları)
+            // 2. Dahili yönlendirme numaralarına GİTMEYEN çağrılar
+            const filteredOutboundCalls = outboundCalls.filter((c) => {
+              const isRedirectNumber = INTERNAL_REDIRECT_NUMBERS.includes(c.to);
+              const hasParent = !!c.parentCallSid;
+              
+              // Sadece parent'lı VE yönlendirme numarasına gitmeyen çağrıları al
+              return hasParent && !isRedirectNumber;
+            });
             
             // İstatistikleri hesapla
             const inboundStats = {
@@ -1382,9 +1399,9 @@ router.get('/monthly-summary', async (req, res) => {
             };
             
             const outboundStats = {
-              total: outboundCalls.length,
-              completed: outboundCalls.filter(c => c.status === 'completed').length,
-              failed: outboundCalls.filter(c => c.status !== 'completed').length,
+              total: filteredOutboundCalls.length,
+              completed: filteredOutboundCalls.filter(c => c.status === 'completed').length,
+              failed: filteredOutboundCalls.filter(c => c.status !== 'completed').length,
             };
             
             return {
