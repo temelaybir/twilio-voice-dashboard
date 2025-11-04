@@ -1140,34 +1140,37 @@ router.get('/daily-summary', async (req, res) => {
     // Parent call kontrolü - inbound için filtrele (conference bridge hariç)
     const inbound = inboundCalls.filter((c) => !c.parentCallSid);
     
-    // Outbound için dahili yönlendirme numaralarını filtrele
-    // +447707964726 gibi Studio Flow dahili yönlendirme numaraları gerçek çağrı değil
-    const INTERNAL_REDIRECT_NUMBERS = ['+447707964726'];
+    // Outbound için function yönlendirme numaralarını filtrele
+    // +447707964726 (Polish agent) ve +447599042882 (Latvian agent) numaralarına
+    // yapılan ve parentCallSid olan çağrılar inbound çağrıların yönlendirmesidir
+    const FUNCTION_REDIRECT_NUMBERS = ['+447707964726', '+447599042882'];
     
     // Outbound çağrıları filtrele:
-    // 1. parentCallSid olan çağrılar (gerçek müşteri çağrıları)
-    // 2. Dahili yönlendirme numaralarına GİTMEYEN çağrılar
+    // Function yönlendirme çağrılarını filtrele (yönlendirme numarasına giden VE parent'lı)
+    // Studio Flow çağrılarını dahil et (parentCallSid olmayan)
+    // Talkyto çağrılarını dahil et (parentCallSid olan ama yönlendirme değil)
     const outbound = outboundCalls.filter((c) => {
-      const isRedirectNumber = INTERNAL_REDIRECT_NUMBERS.includes(c.to);
+      const isRedirectNumber = FUNCTION_REDIRECT_NUMBERS.includes(c.to);
       const hasParent = !!c.parentCallSid;
       
-      // Sadece parent'lı VE yönlendirme numarasına gitmeyen çağrıları al
-      return hasParent && !isRedirectNumber;
+      // Function yönlendirme çağrılarını filtrele (inbound'tan türetilmiş yönlendirmeler)
+      const isFunctionRedirect = isRedirectNumber && hasParent;
+      return !isFunctionRedirect;
     });
     
     // Debug: Filtreleme analizi
     const totalOutbound = outboundCalls.length;
-    const redirectCalls = outboundCalls.filter(c => INTERNAL_REDIRECT_NUMBERS.includes(c.to)).length;
+    const redirectCalls = outboundCalls.filter(c => FUNCTION_REDIRECT_NUMBERS.includes(c.to) && c.parentCallSid).length;
     const withoutParent = outboundCalls.filter(c => !c.parentCallSid).length;
     
-    logger.debug(`🔍 Outbound analizi: Toplam ${totalOutbound}, Yönlendirme ${redirectCalls}, Parent'sız ${withoutParent}, Gerçek ${outbound.length}`);
+    logger.debug(`🔍 Outbound analizi: Toplam ${totalOutbound}, Function yönlendirme ${redirectCalls}, Parent'sız ${withoutParent}, Filtrelenmiş ${outbound.length}`);
     
     if (redirectCalls > 0) {
-      logger.info(`🚫 ${redirectCalls} adet dahili yönlendirme çağrısı filtrelendi`);
+      logger.info(`🚫 ${redirectCalls} adet function yönlendirme çağrısı filtrelendi`);
     }
     
     if (outbound.length > 0) {
-      logger.info(`✅ ${outbound.length} gerçek TalkYto çağrısı bulundu`);
+      logger.info(`✅ ${outbound.length} outbound çağrısı bulundu (Studio Flow + Talkyto)`);
       // İlk çağrının detayını logla
       logger.debug(`İlk gerçek outbound: to=${outbound[0].to}, from=${outbound[0].from}, parent=${outbound[0].parentCallSid ? 'var' : 'yok'}`);
     }
@@ -1176,16 +1179,17 @@ router.get('/daily-summary', async (req, res) => {
     if (debugMode && totalOutbound > 0) {
       logger.warn('📋 ===== TÜM OUTBOUND ÇAĞRILAR (SON 30 GÜN) =====');
       outboundCalls.forEach((call, index) => {
-        const isRedirect = INTERNAL_REDIRECT_NUMBERS.includes(call.to);
+        const isRedirect = FUNCTION_REDIRECT_NUMBERS.includes(call.to);
         const hasParent = !!call.parentCallSid;
-        logger.warn(`${index + 1}. FROM: ${call.from} → TO: ${call.to} | Direction: ${call.direction} | Parent: ${hasParent ? '✓' : '✗'} | Redirect: ${isRedirect ? '✓' : '✗'} | Status: ${call.status} | ${call.startTime}`);
+        const isFunctionRedirect = isRedirect && hasParent;
+        logger.warn(`${index + 1}. FROM: ${call.from} → TO: ${call.to} | Direction: ${call.direction} | Parent: ${hasParent ? '✓' : '✗'} | Function Redirect: ${isFunctionRedirect ? '✓' : '✗'} | Status: ${call.status} | ${call.startTime}`);
       });
       logger.warn('📋 ===== DETAYLI ANALİZ =====');
       logger.warn(`Toplam Outbound: ${totalOutbound}`);
-      logger.warn(`Yönlendirme numarasına (${INTERNAL_REDIRECT_NUMBERS.join(', ')}): ${redirectCalls}`);
+      logger.warn(`Function yönlendirme numarasına (${FUNCTION_REDIRECT_NUMBERS.join(', ')}): ${redirectCalls}`);
       logger.warn(`Parent'lı çağrılar: ${outboundCalls.filter(c => c.parentCallSid).length}`);
       logger.warn(`Parent'sız çağrılar: ${withoutParent}`);
-      logger.warn(`Gerçek TalkYto çağrıları (parent'lı + yönlendirme değil): ${outbound.length}`);
+      logger.warn(`Filtrelenmiş outbound çağrıları (Studio Flow + Talkyto): ${outbound.length}`);
       logger.warn('📋 =====================================');
     }
 
@@ -1376,19 +1380,22 @@ router.get('/monthly-summary', async (req, res) => {
               );
             }
             
-            // Outbound için dahili yönlendirme numaralarını filtrele
-            // +447707964726 gibi Studio Flow dahili yönlendirme numaraları gerçek çağrı değil
-            const INTERNAL_REDIRECT_NUMBERS = ['+447707964726'];
+            // Outbound için function yönlendirme numaralarını filtrele
+            // +447707964726 (Polish agent) ve +447599042882 (Latvian agent) numaralarına
+            // yapılan ve parentCallSid olan çağrılar inbound çağrıların yönlendirmesidir
+            const FUNCTION_REDIRECT_NUMBERS = ['+447707964726', '+447599042882'];
             
             // Outbound çağrıları filtrele:
-            // 1. parentCallSid olan çağrılar (gerçek müşteri çağrıları)
-            // 2. Dahili yönlendirme numaralarına GİTMEYEN çağrılar
+            // Function yönlendirme çağrılarını filtrele (yönlendirme numarasına giden VE parent'lı)
+            // Studio Flow çağrılarını dahil et (parentCallSid olmayan)
+            // Talkyto çağrılarını dahil et (parentCallSid olan ama yönlendirme değil)
             const filteredOutboundCalls = outboundCalls.filter((c) => {
-              const isRedirectNumber = INTERNAL_REDIRECT_NUMBERS.includes(c.to);
+              const isRedirectNumber = FUNCTION_REDIRECT_NUMBERS.includes(c.to);
               const hasParent = !!c.parentCallSid;
               
-              // Sadece parent'lı VE yönlendirme numarasına gitmeyen çağrıları al
-              return hasParent && !isRedirectNumber;
+              // Function yönlendirme çağrılarını filtrele (inbound'tan türetilmiş yönlendirmeler)
+              const isFunctionRedirect = isRedirectNumber && hasParent;
+              return !isFunctionRedirect;
             });
             
             // İstatistikleri hesapla
