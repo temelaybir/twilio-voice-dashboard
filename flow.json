@@ -41,7 +41,7 @@
           "event": "speech"
         },
         {
-          "next": "happy-outgoing",
+          "next": "main_menu_webhook",
           "event": "timeout"
         }
       ],
@@ -54,7 +54,7 @@
         },
         "loop": 2,
         "finish_on_key": "#",
-        "say": "Good evening. This is Happy Smile Clinics. We're calling to remind you about your appointment for the Free Dental Consultation event in Basingstoke... The event will take place this weekend at the Holiday Inn Hotel Basingstoke. If you’re planning to attend, please press 1. If you’re no longer interested, press 2. To leave us a voicemail, press 0. For any changes to your appointment date, please send us a message on WhatsApp or via SMS.",
+        "say": "Hi. Our Manchester event on 8–9 November at Marriott Piccadilly was cancelled. As an alternative, we can arrange a free online consultation from home at a time that suits you. We’re a general and cosmetic dentistry clinic; all treatments are carried out in İstanbul, Turkey. There is no obligation. For an online consultation, press 1. To be notified about the next Manchester event, press 2.To stop messages, press 3. To repeat this menu, press 9.",
         "language": "en-GB",
         "stop_gather": false,
         "gather_language": "en-GB",
@@ -86,7 +86,7 @@
           ]
         },
         {
-          "next": "cancel_webhook",
+          "next": "next-webook",
           "event": "match",
           "conditions": [
             {
@@ -100,7 +100,7 @@
           ]
         },
         {
-          "next": "connect_webhook",
+          "next": "happy-outgoing",
           "event": "match",
           "conditions": [
             {
@@ -109,7 +109,21 @@
                 "{{widgets.happy-outgoing.Digits}}"
               ],
               "type": "equal_to",
-              "value": "0"
+              "value": "9"
+            }
+          ]
+        },
+        {
+          "next": "cancel-webhook",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to 3",
+              "arguments": [
+                "{{widgets.happy-outgoing.Digits}}"
+              ],
+              "type": "equal_to",
+              "value": "3"
             }
           ]
         }
@@ -177,7 +191,7 @@
           "y": -390
         },
         "loop": 1,
-        "say": "Your event appoitment has been confirmed. Your confirmation details and hotel location will be sent via WhatsApp and SMS. See you soon at the event.",
+        "say": "Great. We will book a free online consultation and follow up by WhatsApp or phone shortly. Thank you.",
         "language": "en-GB"
       }
     },
@@ -196,7 +210,7 @@
           "y": -410
         },
         "loop": 1,
-        "say": "Your event registration has been cancelled. Thank you for your interest.",
+        "say": "Noted. We will notify you about the next Manchester consultation day. Thank you.",
         "language": "en-GB"
       }
     },
@@ -345,7 +359,7 @@
       }
     },
     {
-      "name": "cancel_webhook",
+      "name": "next-webook",
       "type": "make-http-request",
       "transitions": [
         {
@@ -384,8 +398,8 @@
       ],
       "properties": {
         "offset": {
-          "x": 540,
-          "y": -790
+          "x": 950,
+          "y": -940
         },
         "method": "POST",
         "content_type": "application/json;charset=utf-8",
@@ -412,7 +426,7 @@
           },
           {
             "type": "string",
-            "value": "https://423c-159-146-51-32.ngrok-free.app",
+            "value": "https://twilio-voice-dashboard.vercel.app",
             "key": "NGROK_URL"
           }
         ],
@@ -477,6 +491,50 @@
         "play_beep": "true",
         "timeout": 5,
         "max_length": 3600
+      }
+    },
+    {
+      "name": "Copy_of_cancelled",
+      "type": "say-play",
+      "transitions": [
+        {
+          "event": "audioComplete"
+        }
+      ],
+      "properties": {
+        "voice": "Polly.Amy-Neural",
+        "offset": {
+          "x": 690,
+          "y": -330
+        },
+        "loop": 1,
+        "say": "Understood. We will stop messages. If you need us, you can reach us anytime. Goodbye.",
+        "language": "en-GB"
+      }
+    },
+    {
+      "name": "cancel-webhook",
+      "type": "make-http-request",
+      "transitions": [
+        {
+          "next": "Copy_of_cancelled",
+          "event": "success"
+        },
+        {
+          "next": "Copy_of_cancelled",
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 750,
+          "y": -620
+        },
+        "method": "POST",
+        "content_type": "application/json;charset=utf-8",
+        "add_twilio_auth": false,
+        "body": "{\n \"flow_sid\": \"{{flow.flow_sid}}\",\n \"execution_sid\": \"{{flow.sid}}\",\n \"event\": \"dtmf_action\",\n \"widget_name\": \"cancelled\",\n \"action\": \"cancel_appointment\",\n \"digits\": \"{{widgets.happy-outgoing.Digits}}\",\n \"to\": \"{{contact.channel.address}}\",\n \"call_hash\": \"{{flow.variables.call_hash}}\"\n}",
+        "url": "{{flow.variables.NGROK_URL}}/api/calls/webhooks/dtmf"
       }
     }
   ],

@@ -164,7 +164,15 @@ app.use(cors({
 
 // Middleware
 app.use(morgan('combined', { stream: logger.stream }));
-app.use(express.json());
+
+// Raw body'yi saklamak için express.json() verify callback kullan
+app.use(express.json({
+  verify: (req, res, buf) => {
+    // Raw body'yi sakla (Twilio signature validation için)
+    req.rawBody = buf;
+  }
+}));
+
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.raw({ type: '*/*' }));
 
