@@ -473,34 +473,94 @@ router.post('/webhooks/status', async (req, res) => {
     // Event history'ye kaydet
     await saveEventHistory('status', req.body);
   
-  // Webhook'tan çağrı durumunu al
-  const callStatus = req.body.CallStatus;
-  const dialCallStatus = req.body.DialCallStatus;
-  
-  // Çağrı reddedildiğinde, CallStatus genellikle "completed" olacak,
-  // ama DialCallStatus "busy" veya "canceled" veya "no-answer" olabilir
-  const executionSid = req.body.CallSid || req.body.execution_sid;
-  
-  if (executionSid) {
-    logger.debug(`Status webhook için executionSid: ${executionSid}, CallStatus: ${callStatus}, DialCallStatus: ${dialCallStatus}`);
+    // Webhook'tan çağrı durumunu al
+    const callStatus = req.body.CallStatus || req.body.call_status;
+    const dialCallStatus = req.body.DialCallStatus;
+    const event = req.body.event; // Flow'dan gelen event tipi (no_answer, busy, call_failed, initiated)
     
-    // Çağrı durumunu logla
-    if (callStatus === 'completed' || 
-        dialCallStatus === 'busy' || 
-        dialCallStatus === 'canceled' || 
-        dialCallStatus === 'no-answer') {
-      // Çağrı reddine özel durum bildirimi
-      const rejectStatus = dialCallStatus || 'canceled';
-      logger.info(`Çağrı reddedildi: ${executionSid}, durum: ${rejectStatus}`);
+    // Çağrı reddedildiğinde, CallStatus genellikle "completed" olacak,
+    // ama DialCallStatus "busy" veya "canceled" veya "no-answer" olabilir
+    const executionSid = req.body.execution_sid || req.body.CallSid;
+    const to = req.body.to || req.body.To;
+    const from = req.body.from || req.body.From;
+    
+    if (executionSid) {
+      logger.debug(`Status webhook için executionSid: ${executionSid}, CallStatus: ${callStatus}, DialCallStatus: ${dialCallStatus}, Event: ${event}`);
+      
+      // Call veritabanı kaydını güncelle veya oluştur
+      if (global.database && global.database.AppDataSource) {
+        try {
+          // Database initialize kontrolü
+          const isInitialized = await ensureDatabaseInitialized();
+          if (isInitialized && global.Call) {
+            const callRepository = global.database.AppDataSource.getRepository(global.Call);
+            
+            // Önce mevcut kaydı ara
+            let callRecord = await callRepository.findOne({
+              where: { executionSid: executionSid }
+            });
+            
+            // Durum bilgisini belirle
+            let status = callStatus;
+            if (event === 'no_answer' || dialCallStatus === 'no-answer') {
+              status = 'no-answer';
+            } else if (event === 'busy' || dialCallStatus === 'busy') {
+              status = 'busy';
+            } else if (event === 'call_failed') {
+              status = 'failed';
+            } else if (event === 'initiated') {
+              status = 'initiated';
+            }
+            
+            if (callRecord) {
+              // Mevcut kaydı güncelle
+              callRecord.status = status;
+              callRecord.callSid = req.body.CallSid || callRecord.callSid;
+              callRecord.updatedAt = new Date();
+              
+              await callRepository.save(callRecord);
+              logger.info(`Call kaydı güncellendi: ${executionSid}, durum: ${status}`);
+            } else {
+              // Yeni kayıt oluştur (eğer flow'dan geliyorsa ve daha önce kaydedilmemişse)
+              callRecord = callRepository.create({
+                executionSid: executionSid,
+                callSid: req.body.CallSid,
+                to: to,
+                from: from,
+                status: status,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+              
+              await callRepository.save(callRecord);
+              logger.info(`Yeni Call kaydı oluşturuldu: ${executionSid}, durum: ${status}`);
+            }
+          }
+        } catch (dbError) {
+          logger.warn('Call kaydı güncellenirken hata:', { message: dbError.message });
+        }
+      }
+      
+      // Çağrı durumunu logla
+      if (callStatus === 'completed' || 
+          dialCallStatus === 'busy' || 
+          dialCallStatus === 'canceled' || 
+          dialCallStatus === 'no-answer' ||
+          event === 'no_answer' ||
+          event === 'busy' ||
+          event === 'call_failed') {
+        // Çağrı reddine özel durum bildirimi
+        const rejectStatus = event || dialCallStatus || 'canceled';
+        logger.info(`Çağrı reddedildi: ${executionSid}, durum: ${rejectStatus}`);
+      } else {
+        // Normal durum güncellemesi
+        logger.info(`Çağrı durumu güncellendi: ${executionSid}, durum: ${callStatus}`);
+      }
     } else {
-      // Normal durum güncellemesi
-      logger.info(`Çağrı durumu güncellendi: ${executionSid}, durum: ${callStatus}`);
+      logger.warn('Status webhook geçersiz executionSid ile alındı:', { body: req.body });
     }
-  } else {
-    logger.warn('Status webhook geçersiz executionSid ile alındı:', { body: req.body });
-  }
-  
-  res.status(200).send('OK');
+    
+    res.status(200).send('OK');
   } catch (error) {
     logger.error('Status webhook hatası:', { error });
     res.sendStatus(500);
@@ -1141,7 +1201,27 @@ router.get('/daily-summary', async (req, res) => {
     logger.info(`Toplam ${allCalls.length} çağrı çekildi (${inboundCalls.length} inbound, ${outboundCalls.length} outbound)`);
 
     // Parent call kontrolü - inbound için filtrele (conference bridge hariç)
-    const inbound = inboundCalls.filter((c) => !c.parentCallSid);
+    // NOT: Kaçırılan çağrılar dahil tüm normal inbound çağrıları tut
+    // Sadece conference/IVR child call'ları çıkar (genellikle 'in-progress' status'lu ve parent'lı)
+    const inbound = inboundCalls.filter((c) => {
+      // parentCallSid yoksa kesinlikle tut
+      if (!c.parentCallSid) return true;
+      
+      // parentCallSid varsa ama kaçırılan veya tamamlanmış bir çağrıysa tut
+      // (bunlar gerçek inbound çağrılar, IVR/Flow'dan geçmiş olabilirler)
+      if (c.status === 'completed' || c.status === 'no-answer' || c.status === 'busy' || c.status === 'failed' || c.status === 'canceled') {
+        return true;
+      }
+      
+      // parentCallSid var VE in-progress/queued gibi bir status ise çıkar (child call)
+      return false;
+    });
+    
+    // Debug: Filtreleme istatistikleri
+    const filteredInboundCount = inboundCalls.length - inbound.length;
+    if (filteredInboundCount > 0) {
+      logger.info(`🔍 ${filteredInboundCount} adet child inbound call filtrelendi (conference/IVR)`);
+    }
     
     // Outbound için function yönlendirme numaralarını filtrele
     // +447707964726 (Polish agent) ve +447599042882 (Latvian agent) numaralarına
@@ -1383,6 +1463,21 @@ router.get('/monthly-summary', async (req, res) => {
               );
             }
             
+            // Inbound çağrıları filtrele (conference/IVR child call'ları çıkar)
+            // Kaçırılan çağrılar dahil tüm normal inbound çağrıları tut
+            const filteredInboundCalls = inboundCalls.filter((c) => {
+              // parentCallSid yoksa kesinlikle tut
+              if (!c.parentCallSid) return true;
+              
+              // parentCallSid varsa ama kaçırılan veya tamamlanmış bir çağrıysa tut
+              if (c.status === 'completed' || c.status === 'no-answer' || c.status === 'busy' || c.status === 'failed' || c.status === 'canceled') {
+                return true;
+              }
+              
+              // parentCallSid var VE in-progress/queued gibi bir status ise çıkar (child call)
+              return false;
+            });
+            
             // Outbound için function yönlendirme numaralarını filtrele
             // +447707964726 (Polish agent) ve +447599042882 (Latvian agent) numaralarına
             // yapılan ve parentCallSid olan çağrılar inbound çağrıların yönlendirmesidir
@@ -1403,9 +1498,9 @@ router.get('/monthly-summary', async (req, res) => {
             
             // İstatistikleri hesapla
             const inboundStats = {
-              total: inboundCalls.length,
-              answered: inboundCalls.filter(c => c.status === 'completed').length,
-              missed: inboundCalls.filter(c => c.status !== 'completed').length,
+              total: filteredInboundCalls.length,
+              answered: filteredInboundCalls.filter(c => c.status === 'completed').length,
+              missed: filteredInboundCalls.filter(c => c.status !== 'completed').length,
             };
             
             const outboundStats = {

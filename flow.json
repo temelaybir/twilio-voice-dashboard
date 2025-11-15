@@ -426,7 +426,7 @@
           },
           {
             "type": "string",
-            "value": "https://twilio-voice-dashboard.vercel.app",
+            "value": "BACKEND_URL_BURAYA",
             "key": "NGROK_URL"
           }
         ],

@@ -90,6 +90,10 @@ try {
     database = require('./config/database');
     Call = require('./models/Call').Call;
     logger.info('Database modülü başarıyla yüklendi');
+    
+    // Global olarak erişilebilir yap (webhook'lar için)
+    global.database = database;
+    global.Call = Call;
   } else {
     logger.warn('Database modülü bulunamadı, veritabanı olmadan devam ediliyor');
   }
