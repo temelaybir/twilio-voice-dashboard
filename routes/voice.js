@@ -1295,7 +1295,14 @@ router.get('/daily-summary', async (req, res) => {
     const inboundTotal = sum(inDur);
     const outboundTotal = sum(outDur);
 
-    const answeredInbound = inbound.filter((c) => c.status === 'completed').length;
+    // Kaçırılan çağrı tespiti - Twilio Function mantığına uygun
+    // Bir çağrı "answered" sayılır sadece:
+    // 1. Status = completed VE
+    // 2. Duration > 0 (en az 1 saniye konuşulmuş)
+    // Aksi halde "missed" sayılır (IVR'ye girdi ama agent'a bağlanmadı)
+    const answeredInbound = inbound.filter((c) => {
+      return c.status === 'completed' && parseInt(c.duration || 0) > 0;
+    }).length;
     const missedInbound = inbound.length - answeredInbound;
     const completedOutbound = outbound.filter((c) => c.status === 'completed').length;
     const failedOutbound = outbound.length - completedOutbound;
@@ -1496,11 +1503,12 @@ router.get('/monthly-summary', async (req, res) => {
               return !isFunctionRedirect;
             });
             
-            // İstatistikleri hesapla
+            // İstatistikleri hesapla - Twilio Function mantığıyla uyumlu
+            // Bir çağrı "answered" sayılır sadece: status = completed VE duration > 0
             const inboundStats = {
               total: filteredInboundCalls.length,
-              answered: filteredInboundCalls.filter(c => c.status === 'completed').length,
-              missed: filteredInboundCalls.filter(c => c.status !== 'completed').length,
+              answered: filteredInboundCalls.filter(c => c.status === 'completed' && parseInt(c.duration || 0) > 0).length,
+              missed: filteredInboundCalls.filter(c => c.status !== 'completed' || parseInt(c.duration || 0) === 0).length,
             };
             
             const outboundStats = {
