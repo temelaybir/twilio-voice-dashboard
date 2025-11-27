@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Upload, FileText, Check, AlertCircle, FileSpreadsheet, Table, ArrowRight, ArrowLeft, Settings2 } from 'lucide-react'
+import { Loader2, Upload, FileText, Check, AlertCircle, FileSpreadsheet, Table, ArrowRight, ArrowLeft, Settings2, ChevronDown } from 'lucide-react'
 import type { EmailList, BulkSubscriberResult } from '@/types/email'
 
 interface SubscriberImportModalProps {
@@ -24,13 +24,69 @@ interface SubscriberImportModalProps {
 type ImportStep = 'upload' | 'mapping' | 'preview'
 
 const TARGET_FIELDS = [
-  { value: 'skip', label: '-- Atla --', color: 'bg-gray-100 text-gray-500' },
-  { value: 'firstName', label: 'Ad', color: 'bg-blue-100 text-blue-700' },
-  { value: 'lastName', label: 'Soyad', color: 'bg-indigo-100 text-indigo-700' },
-  { value: 'email', label: 'Email', color: 'bg-green-100 text-green-700' },
-  { value: 'phone', label: 'Telefon', color: 'bg-purple-100 text-purple-700' },
-  { value: 'city', label: 'Şehir', color: 'bg-orange-100 text-orange-700' },
+  { value: 'skip', label: 'Atla', color: 'bg-gray-100 text-gray-600 border-gray-200' },
+  { value: 'firstName', label: 'Ad', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { value: 'lastName', label: 'Soyad', color: 'bg-indigo-100 text-indigo-700 border-indigo-300' },
+  { value: 'email', label: 'Email', color: 'bg-green-100 text-green-700 border-green-300' },
+  { value: 'phone', label: 'Telefon', color: 'bg-purple-100 text-purple-700 border-purple-300' },
+  { value: 'city', label: 'Şehir', color: 'bg-orange-100 text-orange-700 border-orange-300' },
 ]
+
+// Custom Dropdown Component
+function FieldSelector({ 
+  value, 
+  onChange,
+  disabled 
+}: { 
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const selectedField = TARGET_FIELDS.find(f => f.value === value) || TARGET_FIELDS[0]
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium min-w-[100px] justify-between ${selectedField.color} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'}`}
+      >
+        <span>{selectedField.label}</span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setIsOpen(false)}
+          />
+          {/* Dropdown Menu */}
+          <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border py-1 min-w-[120px]">
+            {TARGET_FIELDS.map(field => (
+              <button
+                key={field.value}
+                type="button"
+                onClick={() => {
+                  onChange(field.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 ${value === field.value ? 'bg-gray-50' : ''}`}
+              >
+                <span className={`w-3 h-3 rounded-full ${field.color.split(' ')[0]}`} />
+                <span>{field.label}</span>
+                {value === field.value && <Check className="h-3 w-3 ml-auto text-green-600" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export function SubscriberImportModal({
   open,
@@ -294,84 +350,51 @@ export function SubscriberImportModal({
           {step === 'mapping' && (
             <>
               <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Settings2 className="h-4 w-4 text-gray-600" />
                     <span className="text-sm font-medium text-gray-700">
-                      Sütun Eşleştirme ({getMappedFieldsCount()} alan eşleştirildi)
+                      Sütun Eşleştirme
                     </span>
+                    <Badge variant={getMappedFieldsCount() > 0 ? "default" : "secondary"}>
+                      {getMappedFieldsCount()} alan eşleştirildi
+                    </Badge>
                   </div>
                   <Badge variant="outline">{totalRows} satır</Badge>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
                   {headers.map(header => (
-                    <div key={header} className="flex items-center gap-2 bg-white p-3 rounded-lg border">
+                    <div key={header} className="flex items-center gap-3 bg-white p-3 rounded-lg border">
                       <div className="flex-1 min-w-0">
-                        <span className="text-sm font-mono text-gray-800 truncate block">{header}</span>
+                        <span className="text-sm font-medium text-gray-800 block truncate">{header}</span>
                         {previewData[0] && (
                           <span className="text-xs text-gray-400 truncate block">
-                            örn: {previewData[0][header] || '-'}
+                            örn: {String(previewData[0][header] || '-').substring(0, 30)}
                           </span>
                         )}
                       </div>
                       <ArrowRight className="h-4 w-4 text-gray-300 flex-shrink-0" />
-                      <select
+                      <FieldSelector
                         value={columnMapping[header] || 'skip'}
-                        onChange={(e) => handleMappingChange(header, e.target.value)}
-                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                          TARGET_FIELDS.find(f => f.value === columnMapping[header])?.color || 'bg-gray-100'
-                        }`}
-                      >
-                        {TARGET_FIELDS.map(field => (
-                          <option key={field.value} value={field.value}>
-                            {field.label}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => handleMappingChange(header, value)}
+                      />
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Preview Table (raw data) */}
-              {previewData.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Table className="h-4 w-4" />
-                    <span className="text-sm font-medium">Veri Önizlemesi (ilk 5 satır)</span>
-                  </div>
-                  <div className="border rounded-lg overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          {headers.map(header => (
-                            <th key={header} className="px-3 py-2 text-left font-medium text-gray-600">
-                              <div className="flex flex-col">
-                                <span className="font-mono text-xs">{header}</span>
-                                <Badge variant="outline" className="mt-1 text-xs w-fit">
-                                  {TARGET_FIELDS.find(f => f.value === columnMapping[header])?.label || 'Atla'}
-                                </Badge>
-                              </div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewData.slice(0, 5).map((row, i) => (
-                          <tr key={i} className="border-t">
-                            {headers.map(header => (
-                              <td key={header} className="px-3 py-2 text-gray-700">
-                                {row[header] || '-'}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+              {/* Quick Select Buttons */}
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <p className="text-sm font-medium text-purple-800 mb-3">Hızlı Seçim:</p>
+                <div className="flex flex-wrap gap-2">
+                  {TARGET_FIELDS.filter(f => f.value !== 'skip').map(field => (
+                    <span key={field.value} className={`px-3 py-1 rounded-full text-xs font-medium ${field.color}`}>
+                      {field.label}
+                    </span>
+                  ))}
                 </div>
-              )}
+              </div>
 
               {!hasRequiredField() && (
                 <div className="bg-yellow-50 p-4 rounded-lg flex items-start gap-2">
