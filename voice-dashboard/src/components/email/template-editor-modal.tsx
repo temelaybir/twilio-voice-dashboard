@@ -353,12 +353,23 @@ export function TemplateEditorModal({
           <div className="bg-blue-50 p-4 rounded-lg">
             <p className="text-sm font-medium text-blue-800 mb-2">Kullanılabilir Değişkenler:</p>
             <div className="flex flex-wrap gap-2">
-              {['{{name}}', '{{firstName}}', '{{lastName}}', '{{email}}', '{{phone}}', '{{subject}}', '{{unsubscribeUrl}}'].map(v => (
-                <code key={v} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+              {[
+                '{{name}}', '{{fullName}}', '{{firstName}}', '{{lastName}}', 
+                '{{email}}', '{{phone}}', '{{city}}', 
+                '{{stage}}', '{{eventDate}}', '{{eventTime}}',
+                '{{subject}}', '{{unsubscribeUrl}}'
+              ].map(v => (
+                <code 
+                  key={v} 
+                  className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs cursor-pointer hover:bg-blue-200"
+                  onClick={() => navigator.clipboard.writeText(v)}
+                  title="Kopyalamak için tıkla"
+                >
                   {v}
                 </code>
               ))}
             </div>
+            <p className="text-xs text-blue-600 mt-2">💡 Kopyalamak için değişkene tıklayın</p>
           </div>
         </div>
 

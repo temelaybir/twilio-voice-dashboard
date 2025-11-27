@@ -1281,12 +1281,19 @@ router.post('/campaigns/:id/send', async (req, res) => {
         const unsubscribeUrl = `${unsubscribeBaseUrl}/api/email/unsubscribe/${subscriber.unsubscribeToken}`;
         
         // Template değişkenlerini hazırla
+        // Tüm değişkenleri hazırla
+        const fullName = subscriber.fullName || `${subscriber.firstName || ''} ${subscriber.lastName || ''}`.trim();
         const variables = {
-          email: subscriber.email,
+          email: subscriber.email || '',
           firstName: subscriber.firstName || '',
           lastName: subscriber.lastName || '',
-          name: `${subscriber.firstName || ''} ${subscriber.lastName || ''}`.trim() || 'Değerli Müşterimiz',
+          fullName: fullName || 'Değerli Müşterimiz',
+          name: fullName || 'Değerli Müşterimiz',
           phone: subscriber.phone || '',
+          city: subscriber.city || '',
+          stage: subscriber.stage || '',
+          eventDate: subscriber.eventDate || '',
+          eventTime: subscriber.eventTime || '',
           unsubscribeUrl
         };
         
