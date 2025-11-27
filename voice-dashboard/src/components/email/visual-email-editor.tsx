@@ -126,7 +126,7 @@ export function VisualEmailEditor({
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-screen w-screen bg-white overflow-hidden">
       {/* Header - Gradient */}
       <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-700 px-6 py-4 shadow-lg">
         <div className="flex items-center justify-between">
@@ -228,15 +228,15 @@ export function VisualEmailEditor({
         </div>
       </div>
 
-      {/* Editor Container */}
-      <div className="flex-1 relative">
+      {/* Editor Container - Full Height */}
+      <div className="flex-1 relative" style={{ height: 'calc(100vh - 120px)' }}>
         <EmailEditor
           ref={emailEditorRef}
           onReady={onReady}
           options={editorOptions}
           style={{ 
-            height: '100%', 
-            minHeight: 'calc(100vh - 180px)'
+            height: '100%',
+            width: '100%'
           }}
         />
         

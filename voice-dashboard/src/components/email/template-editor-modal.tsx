@@ -214,19 +214,20 @@ export function TemplateEditorModal({
     )
   }
 
-  // Görsel Editör (Tam ekran)
+  // Görsel Editör (Tam ekran - Portal kullanarak)
   if (editorMode === 'visual') {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] p-0 overflow-hidden">
-          <VisualEmailEditor
-            initialDesign={designJson}
-            templateName={formData.name}
-            onSave={handleVisualEditorSave}
-            onCancel={() => setEditorMode('select')}
-          />
-        </DialogContent>
-      </Dialog>
+      <div className="fixed inset-0 z-[100] bg-white">
+        <VisualEmailEditor
+          initialDesign={designJson}
+          templateName={formData.name}
+          onSave={handleVisualEditorSave}
+          onCancel={() => {
+            setEditorMode('select')
+            onOpenChange(false)
+          }}
+        />
+      </div>
     )
   }
 
