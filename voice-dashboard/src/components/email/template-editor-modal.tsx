@@ -218,9 +218,8 @@ export function TemplateEditorModal({
   if (editorMode === 'visual') {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0">
+        <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] p-0 overflow-hidden">
           <VisualEmailEditor
-            initialHtml={formData.htmlContent}
             initialDesign={designJson}
             templateName={formData.name}
             onSave={handleVisualEditorSave}
