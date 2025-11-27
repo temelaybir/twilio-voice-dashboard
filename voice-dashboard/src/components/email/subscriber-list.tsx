@@ -97,6 +97,7 @@ export function SubscriberList({
   const selectedList = lists.find(l => l.id === selectedListId)
 
   const toggleSelect = (id: number) => {
+    if (!id || isNaN(id)) return // Geçersiz ID kontrolü
     setSelectedIds(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     )
@@ -106,18 +107,21 @@ export function SubscriberList({
     if (selectedIds.length === filteredSubscribers.length) {
       setSelectedIds([])
     } else {
-      setSelectedIds(filteredSubscribers.map(s => s.id))
+      // Sadece geçerli ID'leri seç
+      setSelectedIds(filteredSubscribers.map(s => s.id).filter(id => id && !isNaN(id)))
     }
   }
 
   const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return
-    if (!confirm(`${selectedIds.length} abone silinecek. Emin misiniz?`)) return
+    // Geçersiz ID'leri filtrele
+    const validIds = selectedIds.filter(id => id && !isNaN(id))
+    if (validIds.length === 0) return
+    if (!confirm(`${validIds.length} abone silinecek. Emin misiniz?`)) return
     
     setDeleting(true)
     try {
       if (onBulkDelete) {
-        await onBulkDelete(selectedIds)
+        await onBulkDelete(validIds)
       }
       setSelectedIds([])
     } finally {

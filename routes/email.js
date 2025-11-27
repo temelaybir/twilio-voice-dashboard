@@ -652,6 +652,11 @@ router.post('/subscribers/bulk', async (req, res) => {
 // DELETE /api/email/subscribers/:id - Abone sil
 router.delete('/subscribers/:id', async (req, res) => {
   try {
+    const subscriberId = parseInt(req.params.id);
+    if (isNaN(subscriberId) || subscriberId <= 0) {
+      return res.status(400).json({ error: 'Geçersiz abone ID' });
+    }
+    
     const { AppDataSource } = require('../config/database');
     if (!AppDataSource?.isInitialized) {
       return res.status(503).json({ error: 'Database not available' });
@@ -662,14 +667,14 @@ router.delete('/subscribers/:id', async (req, res) => {
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
     const listRepo = AppDataSource.getRepository(EmailList);
     
-    const subscriber = await subscriberRepo.findOne({ where: { id: parseInt(req.params.id) } });
+    const subscriber = await subscriberRepo.findOne({ where: { id: subscriberId } });
     
     if (!subscriber) {
       return res.status(404).json({ error: 'Abone bulunamadı' });
     }
     
     const listId = subscriber.listId;
-    await subscriberRepo.delete(parseInt(req.params.id));
+    await subscriberRepo.delete(subscriberId);
     
     // Liste abone sayısını güncelle
     const list = await listRepo.findOne({ where: { id: listId } });
@@ -708,12 +713,17 @@ router.delete('/subscribers/bulk', async (req, res) => {
     let deletedCount = 0;
     
     if (listId) {
+      const parsedListId = parseInt(listId);
+      if (isNaN(parsedListId) || parsedListId <= 0) {
+        return res.status(400).json({ error: 'Geçersiz liste ID' });
+      }
+      
       // Listedeki tüm aboneleri sil
-      const result = await subscriberRepo.delete({ listId: parseInt(listId) });
+      const result = await subscriberRepo.delete({ listId: parsedListId });
       deletedCount = result.affected || 0;
       
       // Liste abone sayısını sıfırla
-      const list = await listRepo.findOne({ where: { id: parseInt(listId) } });
+      const list = await listRepo.findOne({ where: { id: parsedListId } });
       if (list) {
         list.subscriberCount = 0;
         await listRepo.save(list);
@@ -721,12 +731,21 @@ router.delete('/subscribers/bulk', async (req, res) => {
       
       logger.info(`🗑️ Listeden toplu silme: ${deletedCount} abone silindi (Liste ID: ${listId})`);
     } else if (Array.isArray(ids) && ids.length > 0) {
+      // Geçersiz ID'leri filtrele
+      const validIds = ids
+        .map(id => parseInt(id))
+        .filter(id => !isNaN(id) && id > 0);
+      
+      if (validIds.length === 0) {
+        return res.status(400).json({ error: 'Geçerli abone ID bulunamadı' });
+      }
+      
       // Seçili aboneleri sil
-      for (const id of ids) {
-        const subscriber = await subscriberRepo.findOne({ where: { id: parseInt(id) } });
+      for (const subscriberId of validIds) {
+        const subscriber = await subscriberRepo.findOne({ where: { id: subscriberId } });
         if (subscriber) {
           const subListId = subscriber.listId;
-          await subscriberRepo.delete(parseInt(id));
+          await subscriberRepo.delete(subscriberId);
           deletedCount++;
           
           // Liste abone sayısını güncelle
