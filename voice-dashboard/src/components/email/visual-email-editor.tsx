@@ -68,67 +68,75 @@ export function VisualEmailEditor({
     }, 2000)
   }
 
-  const getEditor = () => {
-    return emailEditorRef.current?.editor || emailEditorRef.current
-  }
-
   const handleSave = () => {
-    const editor = getEditor()
-    console.log('🔵 handleSave called, editor:', editor)
+    const editorInstance = emailEditorRef.current
+    console.log('🔵 handleSave - ref:', editorInstance)
     
-    if (!editor?.exportHtml) {
-      console.error('❌ Editor not ready')
-      alert('Editör henüz hazır değil, lütfen bekleyin.')
+    if (!editorInstance) {
+      alert('Editör yüklenmedi.')
       return
     }
     
     setSaving(true)
-    editor.exportHtml((data: any) => {
-      console.log('🟢 Export HTML success:', data)
-      const { design, html } = data
-      onSave({ html, design, name })
+    
+    // Try different API methods
+    if (typeof editorInstance.exportHtml === 'function') {
+      editorInstance.exportHtml((data: any) => {
+        onSave({ html: data.html, design: data.design, name })
+        setSaving(false)
+      })
+    } else if (editorInstance.editor && typeof editorInstance.editor.exportHtml === 'function') {
+      editorInstance.editor.exportHtml((data: any) => {
+        onSave({ html: data.html, design: data.design, name })
+        setSaving(false)
+      })
+    } else {
+      console.log('Available methods:', Object.keys(editorInstance))
+      alert('Export fonksiyonu bulunamadı.')
       setSaving(false)
-    })
+    }
   }
 
   const handlePreview = () => {
-    const editor = getEditor()
-    console.log('🔵 handlePreview called, editor:', editor)
+    const editorInstance = emailEditorRef.current
     
-    if (!editor?.exportHtml) {
-      alert('Editör henüz hazır değil, lütfen bekleyin.')
+    if (!editorInstance) {
+      alert('Editör yüklenmedi.')
       return
     }
     
-    editor.exportHtml((data: any) => {
-      const { html } = data
-      const previewWindow = window.open('', '_blank')
-      if (previewWindow) {
-        previewWindow.document.write(html)
-        previewWindow.document.close()
-      }
-    })
+    const exportFn = editorInstance.exportHtml || editorInstance.editor?.exportHtml
+    if (exportFn) {
+      exportFn.call(editorInstance.editor || editorInstance, (data: any) => {
+        const previewWindow = window.open('', '_blank')
+        if (previewWindow) {
+          previewWindow.document.write(data.html)
+          previewWindow.document.close()
+        }
+      })
+    }
   }
 
   const handleExportHtml = () => {
-    const editor = getEditor()
-    console.log('🔵 handleExportHtml called, editor:', editor)
+    const editorInstance = emailEditorRef.current
     
-    if (!editor?.exportHtml) {
-      alert('Editör henüz hazır değil, lütfen bekleyin.')
+    if (!editorInstance) {
+      alert('Editör yüklenmedi.')
       return
     }
     
-    editor.exportHtml((data: any) => {
-      const { html } = data
-      const blob = new Blob([html], { type: 'text/html' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${name || 'template'}.html`
-      a.click()
-      URL.revokeObjectURL(url)
-    })
+    const exportFn = editorInstance.exportHtml || editorInstance.editor?.exportHtml
+    if (exportFn) {
+      exportFn.call(editorInstance.editor || editorInstance, (data: any) => {
+        const blob = new Blob([data.html], { type: 'text/html' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${name || 'template'}.html`
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+    }
   }
 
   const editorOptions: any = {
