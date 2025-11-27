@@ -827,7 +827,18 @@ router.post('/subscribers/apply-mapping', express.json({ limit: '50mb' }), async
       
       // Telefon numarasını formatla
       if (normalized.phone) {
-        let phone = normalized.phone.replace(/\s/g, '').replace(/-/g, '');
+        // Önce tek tırnak ve gereksiz karakterleri temizle
+        let phone = normalized.phone
+          .replace(/'/g, '')  // Tek tırnak kaldır
+          .replace(/"/g, '')  // Çift tırnak kaldır
+          .replace(/\s/g, '') // Boşluk kaldır
+          .replace(/-/g, '')  // Tire kaldır
+          .replace(/\(/g, '') // Parantez kaldır
+          .replace(/\)/g, '');
+        
+        // + işaretinden sonraki tırnağı da temizle
+        phone = phone.replace(/^\+'+/, '+').replace(/^'+\+/, '+');
+        
         if (phone.startsWith('0')) {
           phone = '+9' + phone;
         } else if (phone.startsWith('5') && phone.length === 10) {
