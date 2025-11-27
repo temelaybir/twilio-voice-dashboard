@@ -371,6 +371,28 @@ export function SubscriberImportModal({
           {/* STEP 2: Column Mapping */}
           {step === 'mapping' && (
             <>
+              {/* Liste Seçimi - Eşleştirme adımında */}
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <label className="text-sm font-medium text-purple-800 mb-3 block">📋 Hedef Liste Seçin *</label>
+                <div className="flex flex-wrap gap-2">
+                  {lists.length === 0 ? (
+                    <p className="text-sm text-purple-600">Henüz liste yok. Önce bir liste oluşturun.</p>
+                  ) : (
+                    lists.map(list => (
+                      <Badge
+                        key={list.id}
+                        variant={selectedListId === list.id ? 'default' : 'outline'}
+                        className={`cursor-pointer px-3 py-1.5 text-sm ${selectedListId === list.id ? 'bg-purple-600' : 'hover:bg-purple-100'}`}
+                        onClick={() => setSelectedListId(list.id)}
+                      >
+                        {selectedListId === list.id && <Check className="h-3 w-3 mr-1" />}
+                        {list.name}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+              </div>
+
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -418,12 +440,13 @@ export function SubscriberImportModal({
                 </div>
               </div>
 
-              {!hasRequiredField() && (
+              {(!hasRequiredField() || !selectedListId) && (
                 <div className="bg-yellow-50 p-4 rounded-lg flex items-start gap-2">
                   <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-                  <p className="text-sm text-yellow-700">
-                    En az <strong>Telefon</strong> veya <strong>Email</strong> alanını eşleştirmeniz gerekiyor
-                  </p>
+                  <div className="text-sm text-yellow-700">
+                    {!selectedListId && <p className="mb-1">⚠️ Lütfen bir <strong>hedef liste</strong> seçin</p>}
+                    {!hasRequiredField() && <p>⚠️ En az <strong>Telefon</strong> veya <strong>Email</strong> alanını eşleştirin</p>}
+                  </div>
                 </div>
               )}
             </>
@@ -541,11 +564,11 @@ export function SubscriberImportModal({
             {step === 'mapping' && (
               <Button 
                 onClick={applyMapping} 
-                disabled={parsing || !hasRequiredField()}
+                disabled={parsing || !hasRequiredField() || !selectedListId}
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 {parsing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Devam Et
+                {!selectedListId ? 'Liste Seçin' : 'Devam Et'}
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             )}
