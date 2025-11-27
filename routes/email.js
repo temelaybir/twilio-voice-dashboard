@@ -793,23 +793,24 @@ router.post('/subscribers/parse-xls', express.raw({ type: ['application/vnd.ms-e
   }
 });
 
-// POST /api/email/subscribers/apply-mapping - Eşleştirme ile veriyi dönüştür
-router.post('/subscribers/apply-mapping', express.raw({ type: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'], limit: '10mb' }), async (req, res) => {
+// POST /api/email/subscribers/apply-mapping - Eşleştirme ile veriyi dönüştür (JSON body)
+router.post('/subscribers/apply-mapping', express.json({ limit: '50mb' }), async (req, res) => {
   try {
-    // Mapping bilgisi header'dan alınacak
-    const mappingJson = req.headers['x-column-mapping'];
-    if (!mappingJson) {
+    const { fileBase64, columnMapping } = req.body;
+    
+    if (!columnMapping) {
       return res.status(400).json({ error: 'Sütun eşleştirmesi gerekli' });
     }
     
-    const columnMapping = JSON.parse(decodeURIComponent(mappingJson));
-    
-    if (!req.body || req.body.length === 0) {
-      return res.status(400).json({ error: 'Dosya yüklenmedi' });
+    if (!fileBase64) {
+      return res.status(400).json({ error: 'Dosya verisi gerekli' });
     }
 
+    // Base64'ten buffer'a çevir
+    const fileBuffer = Buffer.from(fileBase64, 'base64');
+
     // XLS/XLSX dosyasını parse et
-    const workbook = XLSX.read(req.body, { type: 'buffer' });
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });

@@ -207,13 +207,20 @@ export function SubscriberImportModal({
     console.log('🟢 [Mapping] Column mapping:', columnMapping)
     
     try {
+      // File buffer'ı base64'e çevir
+      const base64 = btoa(
+        new Uint8Array(fileBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      )
+      
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/octet-stream',
-          'X-Column-Mapping': encodeURIComponent(JSON.stringify(columnMapping))
+          'Content-Type': 'application/json'
         },
-        body: fileBuffer
+        body: JSON.stringify({
+          fileBase64: base64,
+          columnMapping: columnMapping
+        })
       })
       
       console.log('🟢 [Mapping] Response status:', response.status, response.statusText)
