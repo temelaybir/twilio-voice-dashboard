@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -11,9 +11,8 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Upload, FileText, Check, AlertCircle, FileSpreadsheet, Table } from 'lucide-react'
+import { Loader2, Upload, FileText, Check, AlertCircle, FileSpreadsheet, Table, ArrowRight, ArrowLeft, Settings2 } from 'lucide-react'
 import type { EmailList, BulkSubscriberResult } from '@/types/email'
-import { parseXlsFile } from '@/lib/email-api'
 
 interface SubscriberImportModalProps {
   open: boolean
@@ -22,97 +21,141 @@ interface SubscriberImportModalProps {
   onImport: (subscribers: any[], listId: number) => Promise<BulkSubscriberResult>
 }
 
+type ImportStep = 'upload' | 'mapping' | 'preview'
+
+const TARGET_FIELDS = [
+  { value: 'skip', label: '-- Atla --', color: 'bg-gray-100 text-gray-500' },
+  { value: 'firstName', label: 'Ad', color: 'bg-blue-100 text-blue-700' },
+  { value: 'lastName', label: 'Soyad', color: 'bg-indigo-100 text-indigo-700' },
+  { value: 'email', label: 'Email', color: 'bg-green-100 text-green-700' },
+  { value: 'phone', label: 'Telefon', color: 'bg-purple-100 text-purple-700' },
+  { value: 'city', label: 'Şehir', color: 'bg-orange-100 text-orange-700' },
+]
+
 export function SubscriberImportModal({
   open,
   onOpenChange,
   lists,
   onImport
 }: SubscriberImportModalProps) {
+  const [step, setStep] = useState<ImportStep>('upload')
   const [selectedListId, setSelectedListId] = useState<number>(lists[0]?.id || 0)
-  const [importMode, setImportMode] = useState<'csv' | 'xls'>('xls')
-  const [csvData, setCsvData] = useState('')
-  const [xlsData, setXlsData] = useState<any[]>([])
   const [importing, setImporting] = useState(false)
   const [parsing, setParsing] = useState(false)
   const [result, setResult] = useState<BulkSubscriberResult | null>(null)
   const [error, setError] = useState('')
   const [fileName, setFileName] = useState('')
+  
+  // Raw file data
+  const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null)
+  
+  // Parse sonuçları
+  const [headers, setHeaders] = useState<string[]>([])
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({})
+  const [previewData, setPreviewData] = useState<any[]>([])
+  const [totalRows, setTotalRows] = useState(0)
+  
+  // Final mapped data
+  const [mappedData, setMappedData] = useState<any[]>([])
 
-  const parseCSV = (text: string) => {
-    const lines = text.trim().split('\n')
-    if (lines.length < 2) return []
-    
-    const headers = lines[0].toLowerCase().split(',').map(h => h.trim())
-    const emailIndex = headers.findIndex(h => h === 'email' || h === 'e-mail' || h === 'mail' || h === 'eposta')
-    const firstNameIndex = headers.findIndex(h => h === 'firstname' || h === 'first_name' || h === 'ad' || h === 'isim' || h === 'name')
-    const lastNameIndex = headers.findIndex(h => h === 'lastname' || h === 'last_name' || h === 'soyad')
-    const phoneIndex = headers.findIndex(h => h === 'phone' || h === 'telefon' || h === 'tel' || h === 'gsm' || h === 'cep')
-    const cityIndex = headers.findIndex(h => h === 'city' || h === 'şehir' || h === 'sehir' || h === 'il')
-    
-    const subscribers = []
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''))
-      const email = emailIndex >= 0 ? values[emailIndex] : undefined
-      const phone = phoneIndex >= 0 ? values[phoneIndex] : undefined
-      
-      if (email || phone) {
-        let formattedPhone = phone
-        if (formattedPhone) {
-          formattedPhone = formattedPhone.replace(/\s/g, '').replace(/-/g, '')
-          if (formattedPhone.startsWith('0')) {
-            formattedPhone = '+9' + formattedPhone
-          } else if (formattedPhone.startsWith('5') && formattedPhone.length === 10) {
-            formattedPhone = '+90' + formattedPhone
-          } else if (!formattedPhone.startsWith('+')) {
-            formattedPhone = '+' + formattedPhone
-          }
-        }
-        
-        subscribers.push({
-          email,
-          firstName: firstNameIndex >= 0 ? values[firstNameIndex] : undefined,
-          lastName: lastNameIndex >= 0 ? values[lastNameIndex] : undefined,
-          phone: formattedPhone,
-          city: cityIndex >= 0 ? values[cityIndex] : undefined
-        })
-      }
+  // Liste değiştiğinde selectedListId güncelle
+  useEffect(() => {
+    if (lists.length > 0 && !selectedListId) {
+      setSelectedListId(lists[0].id)
     }
-    
-    return subscribers
+  }, [lists, selectedListId])
+
+  const getApiBaseUrl = () => {
+    const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    if (envUrl.endsWith('/api')) return envUrl
+    if (envUrl.endsWith('/api/')) return envUrl.slice(0, -1)
+    return `${envUrl.replace(/\/$/, '')}/api`
   }
 
-  const handleXlsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     
     setFileName(file.name)
     setParsing(true)
     setError('')
-    setXlsData([])
+    setHeaders([])
+    setColumnMapping({})
+    setPreviewData([])
     
     try {
-      const result = await parseXlsFile(file)
-      setXlsData(result.data)
-      setError('')
+      // Dosyayı buffer olarak oku
+      const buffer = await file.arrayBuffer()
+      setFileBuffer(buffer)
+      
+      // Backend'e gönder ve parse et
+      const response = await fetch(`${getApiBaseUrl()}/email/subscribers/parse-xls`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: buffer
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Parse hatası')
+      }
+      
+      setHeaders(data.headers)
+      setColumnMapping(data.suggestedMapping)
+      setPreviewData(data.previewData)
+      setTotalRows(data.totalRows)
+      
+      // Otomatik olarak eşleştirme adımına geç
+      setStep('mapping')
+      
     } catch (err: any) {
       setError(err.message || 'Dosya okunamadı')
-      setXlsData([])
     } finally {
       setParsing(false)
     }
   }
 
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    
-    setFileName(file.name)
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target?.result as string
-      setCsvData(text)
+  const handleMappingChange = (header: string, value: string) => {
+    setColumnMapping(prev => ({
+      ...prev,
+      [header]: value
+    }))
+  }
+
+  const applyMapping = async () => {
+    if (!fileBuffer) {
+      setError('Dosya bulunamadı, lütfen tekrar yükleyin')
+      return
     }
-    reader.readAsText(file)
+    
+    setParsing(true)
+    setError('')
+    
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/email/subscribers/apply-mapping`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/octet-stream',
+          'X-Column-Mapping': encodeURIComponent(JSON.stringify(columnMapping))
+        },
+        body: fileBuffer
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Eşleştirme hatası')
+      }
+      
+      setMappedData(data.data)
+      setStep('preview')
+      
+    } catch (err: any) {
+      setError(err.message || 'Eşleştirme uygulanamadı')
+    } finally {
+      setParsing(false)
+    }
   }
 
   const handleImport = async () => {
@@ -121,29 +164,8 @@ export function SubscriberImportModal({
       return
     }
     
-    let subscribers: any[] = []
-    
-    if (importMode === 'xls') {
-      if (xlsData.length === 0) {
-        setError('Lütfen bir XLS/XLSX dosyası yükleyin')
-        return
-      }
-      subscribers = xlsData
-    } else {
-      if (!csvData.trim()) {
-        setError('Lütfen CSV verisi girin')
-        return
-      }
-      try {
-        subscribers = parseCSV(csvData)
-      } catch (err: any) {
-        setError(err.message || 'CSV parse hatası')
-        return
-      }
-    }
-    
-    if (subscribers.length === 0) {
-      setError('Geçerli kayıt bulunamadı')
+    if (mappedData.length === 0) {
+      setError('İçe aktarılacak veri yok')
       return
     }
     
@@ -152,14 +174,8 @@ export function SubscriberImportModal({
     setResult(null)
     
     try {
-      const importResult = await onImport(subscribers, selectedListId)
+      const importResult = await onImport(mappedData, selectedListId)
       setResult(importResult)
-      
-      if (importResult.added > 0) {
-        setCsvData('')
-        setXlsData([])
-        setFileName('')
-      }
     } catch (err: any) {
       setError(err.message || 'İçe aktarma hatası')
     } finally {
@@ -168,198 +184,287 @@ export function SubscriberImportModal({
   }
 
   const handleClose = () => {
-    setCsvData('')
-    setXlsData([])
+    setStep('upload')
+    setFileName('')
+    setFileBuffer(null)
+    setHeaders([])
+    setColumnMapping({})
+    setPreviewData([])
+    setMappedData([])
+    setTotalRows(0)
     setResult(null)
     setError('')
-    setFileName('')
     onOpenChange(false)
   }
 
-  const currentData = importMode === 'xls' ? xlsData : (csvData ? parseCSV(csvData) : [])
+  const goBack = () => {
+    if (step === 'mapping') {
+      setStep('upload')
+    } else if (step === 'preview') {
+      setStep('mapping')
+    }
+  }
+
+  const getMappedFieldsCount = () => {
+    return Object.values(columnMapping).filter(v => v && v !== 'skip').length
+  }
+
+  const hasRequiredField = () => {
+    const values = Object.values(columnMapping)
+    return values.includes('phone') || values.includes('email')
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
             Toplu Abone İçe Aktarma
           </DialogTitle>
           <DialogDescription>
-            Excel (XLS/XLSX) veya CSV dosyasından aboneleri içe aktarın
+            {step === 'upload' && 'Excel (XLS/XLSX) dosyası yükleyin'}
+            {step === 'mapping' && 'Sütunları eşleştirin'}
+            {step === 'preview' && 'Önizleme ve içe aktarma'}
           </DialogDescription>
         </DialogHeader>
 
+        {/* Progress Steps */}
+        <div className="flex items-center justify-center gap-2 py-4 border-b">
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${step === 'upload' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500'}`}>
+            <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-xs">1</span>
+            Dosya Yükle
+          </div>
+          <ArrowRight className="h-4 w-4 text-gray-300" />
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${step === 'mapping' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500'}`}>
+            <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-xs">2</span>
+            Sütun Eşleştir
+          </div>
+          <ArrowRight className="h-4 w-4 text-gray-300" />
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${step === 'preview' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500'}`}>
+            <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-xs">3</span>
+            İçe Aktar
+          </div>
+        </div>
+
         <div className="space-y-4 py-4">
-          {/* Import Mode Selection */}
-          <div className="flex gap-2">
-            <Button
-              variant={importMode === 'xls' ? 'default' : 'outline'}
-              onClick={() => setImportMode('xls')}
-              className="flex-1 gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel (XLS/XLSX)
-            </Button>
-            <Button
-              variant={importMode === 'csv' ? 'default' : 'outline'}
-              onClick={() => setImportMode('csv')}
-              className="flex-1 gap-2"
-            >
-              <FileText className="h-4 w-4" />
-              CSV
-            </Button>
-          </div>
-
-          {/* List Selection */}
-          <div>
-            <label className="text-sm font-medium mb-2 block">Hedef Liste *</label>
-            <div className="flex flex-wrap gap-2">
-              {lists.map(list => (
-                <Badge
-                  key={list.id}
-                  variant={selectedListId === list.id ? 'default' : 'outline'}
-                  className="cursor-pointer"
-                  onClick={() => setSelectedListId(list.id)}
-                >
-                  {selectedListId === list.id && <Check className="h-3 w-3 mr-1" />}
-                  {list.name}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          {/* XLS Upload */}
-          {importMode === 'xls' && (
-            <div>
-              <label className="text-sm font-medium mb-2 block">Excel Dosyası (XLS/XLSX)</label>
-              <label className="block">
-                <input
-                  type="file"
-                  accept=".xls,.xlsx"
-                  onChange={handleXlsUpload}
-                  className="hidden"
-                />
-                <div className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-purple-400 transition-colors bg-purple-50/50">
-                  {parsing ? (
-                    <>
-                      <Loader2 className="h-10 w-10 mx-auto text-purple-500 mb-3 animate-spin" />
-                      <p className="text-sm text-purple-600">Dosya işleniyor...</p>
-                    </>
-                  ) : (
-                    <>
-                      <FileSpreadsheet className="h-10 w-10 mx-auto text-purple-500 mb-3" />
-                      <p className="text-sm text-gray-600 font-medium">
-                        {fileName || 'Excel dosyası yüklemek için tıklayın'}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">.xls veya .xlsx formatı</p>
-                    </>
-                  )}
-                </div>
-              </label>
-              
-              {xlsData.length > 0 && (
-                <p className="text-sm text-green-600 mt-2">
-                  ✅ {xlsData.length} kayıt bulundu
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* CSV Upload/Input */}
-          {importMode === 'csv' && (
-            <div>
-              <label className="text-sm font-medium mb-2 block">CSV Dosyası veya Veri</label>
-              <label className="block mb-2">
-                <input
-                  type="file"
-                  accept=".csv,.txt"
-                  onChange={handleCsvUpload}
-                  className="hidden"
-                />
-                <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors">
-                  <FileText className="h-6 w-6 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600">{fileName || 'CSV dosyası yükle'}</p>
-                </div>
-              </label>
-              
-              <textarea
-                value={csvData}
-                onChange={(e) => setCsvData(e.target.value)}
-                className="w-full h-[120px] p-3 border rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="ad,telefon,email,şehir
-Ahmet Yılmaz,05551234567,ahmet@example.com,İstanbul
-Ayşe Kaya,05559876543,ayse@example.com,Ankara"
-              />
-            </div>
-          )}
-
-          {/* Preview Table */}
-          {currentData.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Table className="h-4 w-4" />
-                <span className="text-sm font-medium">Önizleme ({currentData.length} kayıt)</span>
-              </div>
-              <div className="border rounded-lg overflow-x-auto max-h-[200px]">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Ad</th>
-                      <th className="px-3 py-2 text-left">Soyad</th>
-                      <th className="px-3 py-2 text-left">Telefon</th>
-                      <th className="px-3 py-2 text-left">Email</th>
-                      <th className="px-3 py-2 text-left">Şehir</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentData.slice(0, 10).map((row, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="px-3 py-2">{row.firstName || '-'}</td>
-                        <td className="px-3 py-2">{row.lastName || '-'}</td>
-                        <td className="px-3 py-2 font-mono text-xs">{row.phone || '-'}</td>
-                        <td className="px-3 py-2">{row.email || '-'}</td>
-                        <td className="px-3 py-2">{row.city || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {currentData.length > 10 && (
-                  <div className="text-center py-2 text-xs text-gray-500 bg-gray-50">
-                    ... ve {currentData.length - 10} kayıt daha
+          
+          {/* STEP 1: Upload */}
+          {step === 'upload' && (
+            <>
+              <div>
+                <label className="block">
+                  <input
+                    type="file"
+                    accept=".xls,.xlsx"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <div className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-purple-400 transition-colors bg-purple-50/50">
+                    {parsing ? (
+                      <>
+                        <Loader2 className="h-12 w-12 mx-auto text-purple-500 mb-3 animate-spin" />
+                        <p className="text-sm text-purple-600 font-medium">Dosya işleniyor...</p>
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="h-12 w-12 mx-auto text-purple-500 mb-3" />
+                        <p className="text-lg text-gray-700 font-medium">
+                          {fileName || 'Excel dosyası yüklemek için tıklayın'}
+                        </p>
+                        <p className="text-sm text-gray-400 mt-2">.xls veya .xlsx formatı desteklenir</p>
+                      </>
+                    )}
                   </div>
-                )}
+                </label>
               </div>
-            </div>
+
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 mb-2">💡 Bilgi</p>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• Excel dosyanızı yükleyin, sütunları manuel olarak eşleştirebilirsiniz</li>
+                  <li>• En az telefon veya email sütunu gereklidir</li>
+                  <li>• Telefon numaraları otomatik formatlanır (05xx → +905xx)</li>
+                </ul>
+              </div>
+            </>
           )}
 
-          {/* Format Help */}
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm font-medium text-blue-800 mb-2">
-              {importMode === 'xls' ? 'Excel Formatı:' : 'CSV Formatı:'}
-            </p>
-            <p className="text-xs text-blue-700 mb-2">
-              Desteklenen sütun başlıkları (Türkçe veya İngilizce):
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <code className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                ad / firstName
-              </code>
-              <code className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                telefon / phone
-              </code>
-              <code className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                email / e-posta
-              </code>
-              <code className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                şehir / city
-              </code>
-            </div>
-            <p className="text-xs text-blue-600 mt-2">
-              💡 Telefon numaraları otomatik formatlanır (05xx → +905xx)
-            </p>
-          </div>
+          {/* STEP 2: Column Mapping */}
+          {step === 'mapping' && (
+            <>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4 text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">
+                      Sütun Eşleştirme ({getMappedFieldsCount()} alan eşleştirildi)
+                    </span>
+                  </div>
+                  <Badge variant="outline">{totalRows} satır</Badge>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {headers.map(header => (
+                    <div key={header} className="flex items-center gap-2 bg-white p-3 rounded-lg border">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-mono text-gray-800 truncate block">{header}</span>
+                        {previewData[0] && (
+                          <span className="text-xs text-gray-400 truncate block">
+                            örn: {previewData[0][header] || '-'}
+                          </span>
+                        )}
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-gray-300 flex-shrink-0" />
+                      <select
+                        value={columnMapping[header] || 'skip'}
+                        onChange={(e) => handleMappingChange(header, e.target.value)}
+                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                          TARGET_FIELDS.find(f => f.value === columnMapping[header])?.color || 'bg-gray-100'
+                        }`}
+                      >
+                        {TARGET_FIELDS.map(field => (
+                          <option key={field.value} value={field.value}>
+                            {field.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preview Table (raw data) */}
+              {previewData.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Table className="h-4 w-4" />
+                    <span className="text-sm font-medium">Veri Önizlemesi (ilk 5 satır)</span>
+                  </div>
+                  <div className="border rounded-lg overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {headers.map(header => (
+                            <th key={header} className="px-3 py-2 text-left font-medium text-gray-600">
+                              <div className="flex flex-col">
+                                <span className="font-mono text-xs">{header}</span>
+                                <Badge variant="outline" className="mt-1 text-xs w-fit">
+                                  {TARGET_FIELDS.find(f => f.value === columnMapping[header])?.label || 'Atla'}
+                                </Badge>
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewData.slice(0, 5).map((row, i) => (
+                          <tr key={i} className="border-t">
+                            {headers.map(header => (
+                              <td key={header} className="px-3 py-2 text-gray-700">
+                                {row[header] || '-'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {!hasRequiredField() && (
+                <div className="bg-yellow-50 p-4 rounded-lg flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                  <p className="text-sm text-yellow-700">
+                    En az <strong>Telefon</strong> veya <strong>Email</strong> alanını eşleştirmeniz gerekiyor
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* STEP 3: Preview & Import */}
+          {step === 'preview' && (
+            <>
+              {/* List Selection */}
+              <div>
+                <label className="text-sm font-medium mb-2 block">Hedef Liste *</label>
+                <div className="flex flex-wrap gap-2">
+                  {lists.map(list => (
+                    <Badge
+                      key={list.id}
+                      variant={selectedListId === list.id ? 'default' : 'outline'}
+                      className="cursor-pointer px-3 py-1"
+                      onClick={() => setSelectedListId(list.id)}
+                    >
+                      {selectedListId === list.id && <Check className="h-3 w-3 mr-1" />}
+                      {list.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Final Preview */}
+              <div className="bg-green-50 p-4 rounded-lg">
+                <p className="text-sm font-medium text-green-800 mb-2">
+                  ✅ {mappedData.length} kayıt içe aktarmaya hazır
+                </p>
+              </div>
+
+              {mappedData.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Table className="h-4 w-4" />
+                    <span className="text-sm font-medium">İçe Aktarılacak Veriler</span>
+                  </div>
+                  <div className="border rounded-lg overflow-x-auto max-h-[250px]">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Ad</th>
+                          <th className="px-3 py-2 text-left">Soyad</th>
+                          <th className="px-3 py-2 text-left">Telefon</th>
+                          <th className="px-3 py-2 text-left">Email</th>
+                          <th className="px-3 py-2 text-left">Şehir</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mappedData.slice(0, 20).map((row, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="px-3 py-2">{row.firstName || '-'}</td>
+                            <td className="px-3 py-2">{row.lastName || '-'}</td>
+                            <td className="px-3 py-2 font-mono text-xs">{row.phone || '-'}</td>
+                            <td className="px-3 py-2">{row.email || '-'}</td>
+                            <td className="px-3 py-2">{row.city || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {mappedData.length > 20 && (
+                      <div className="text-center py-2 text-xs text-gray-500 bg-gray-50">
+                        ... ve {mappedData.length - 20} kayıt daha
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Result */}
+              {result && (
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <p className="text-sm font-medium text-green-800 mb-2">İçe Aktarma Tamamlandı:</p>
+                  <ul className="text-sm text-green-700 space-y-1">
+                    <li>✅ {result.added} abone eklendi</li>
+                    {result.skipped > 0 && <li>⏭️ {result.skipped} abone atlandı (mevcut/geçersiz)</li>}
+                    {result.errors.length > 0 && (
+                      <li>❌ {result.errors.length} hata</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
 
           {/* Error */}
           {error && (
@@ -368,34 +473,45 @@ Ayşe Kaya,05559876543,ayse@example.com,Ankara"
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
-
-          {/* Result */}
-          {result && (
-            <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm font-medium text-green-800 mb-2">İçe Aktarma Tamamlandı:</p>
-              <ul className="text-sm text-green-700 space-y-1">
-                <li>✅ {result.added} abone eklendi</li>
-                {result.skipped > 0 && <li>⏭️ {result.skipped} abone atlandı (mevcut/geçersiz)</li>}
-                {result.errors.length > 0 && (
-                  <li>❌ {result.errors.length} hata</li>
-                )}
-              </ul>
-            </div>
-          )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
-            Kapat
-          </Button>
-          <Button 
-            onClick={handleImport} 
-            disabled={importing || parsing || currentData.length === 0}
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            {importing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {currentData.length > 0 ? `${currentData.length} Kayıt İçe Aktar` : 'İçe Aktar'}
-          </Button>
+        <DialogFooter className="flex justify-between">
+          <div>
+            {step !== 'upload' && (
+              <Button variant="outline" onClick={goBack} disabled={parsing || importing}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Geri
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleClose}>
+              {result ? 'Kapat' : 'İptal'}
+            </Button>
+            
+            {step === 'mapping' && (
+              <Button 
+                onClick={applyMapping} 
+                disabled={parsing || !hasRequiredField()}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {parsing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Devam Et
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            )}
+            
+            {step === 'preview' && !result && (
+              <Button 
+                onClick={handleImport} 
+                disabled={importing || mappedData.length === 0 || !selectedListId}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {importing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {mappedData.length} Kayıt İçe Aktar
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

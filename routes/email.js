@@ -644,7 +644,7 @@ router.delete('/subscribers/:id', async (req, res) => {
   }
 });
 
-// POST /api/email/subscribers/parse-xls - XLS/XLSX dosyasını parse et
+// POST /api/email/subscribers/parse-xls - XLS/XLSX dosyasını parse et (sütun eşleştirme destekli)
 router.post('/subscribers/parse-xls', express.raw({ type: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'], limit: '10mb' }), async (req, res) => {
   try {
     if (!req.body || req.body.length === 0) {
@@ -656,15 +656,18 @@ router.post('/subscribers/parse-xls', express.raw({ type: ['application/vnd.ms-e
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     
-    // JSON'a çevir (header'ları lowercase yap)
+    // JSON'a çevir
     const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
     
     if (rawData.length === 0) {
       return res.status(400).json({ error: 'Dosyada veri bulunamadı' });
     }
 
-    // Header mapping (Türkçe ve İngilizce destekli)
-    const headerMapping = {
+    // Orijinal header'ları al
+    const originalHeaders = Object.keys(rawData[0] || {});
+
+    // Header mapping önerileri (Türkçe ve İngilizce destekli)
+    const headerSuggestions = {
       // Ad
       'ad': 'firstName',
       'isim': 'firstName',
@@ -704,47 +707,94 @@ router.post('/subscribers/parse-xls', express.raw({ type: ['application/vnd.ms-e
       'konum': 'city'
     };
 
-    // Veriyi normalize et
+    // Her header için öneri oluştur
+    const suggestedMapping = {};
+    for (const header of originalHeaders) {
+      const normalizedHeader = header.toString().toLowerCase().trim();
+      suggestedMapping[header] = headerSuggestions[normalizedHeader] || 'skip';
+    }
+
+    // Ham veriyi önizleme için döndür (ilk 100 satır)
+    const previewData = rawData.slice(0, 100).map(row => {
+      const rowData = {};
+      for (const header of originalHeaders) {
+        rowData[header] = row[header] ? row[header].toString() : '';
+      }
+      return rowData;
+    });
+
+    logger.info(`📊 XLS parse edildi: ${rawData.length} kayıt, ${originalHeaders.length} sütun bulundu`);
+    
+    res.json({ 
+      success: true, 
+      headers: originalHeaders,
+      suggestedMapping,
+      previewData,
+      totalRows: rawData.length
+    });
+  } catch (error) {
+    logger.error('XLS parse hatası:', error);
+    res.status(500).json({ error: 'Dosya işlenirken hata oluştu: ' + error.message });
+  }
+});
+
+// POST /api/email/subscribers/apply-mapping - Eşleştirme ile veriyi dönüştür
+router.post('/subscribers/apply-mapping', express.raw({ type: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'], limit: '10mb' }), async (req, res) => {
+  try {
+    // Mapping bilgisi header'dan alınacak
+    const mappingJson = req.headers['x-column-mapping'];
+    if (!mappingJson) {
+      return res.status(400).json({ error: 'Sütun eşleştirmesi gerekli' });
+    }
+    
+    const columnMapping = JSON.parse(decodeURIComponent(mappingJson));
+    
+    if (!req.body || req.body.length === 0) {
+      return res.status(400).json({ error: 'Dosya yüklenmedi' });
+    }
+
+    // XLS/XLSX dosyasını parse et
+    const workbook = XLSX.read(req.body, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+    // Veriyi kullanıcının eşleştirmesine göre dönüştür
     const subscribers = rawData.map(row => {
       const normalized = {};
       
-      for (const [key, value] of Object.entries(row)) {
-        const normalizedKey = key.toString().toLowerCase().trim();
-        const mappedKey = headerMapping[normalizedKey];
-        
-        if (mappedKey) {
-          normalized[mappedKey] = value ? value.toString().trim() : '';
+      for (const [originalHeader, targetField] of Object.entries(columnMapping)) {
+        if (targetField && targetField !== 'skip' && row[originalHeader] !== undefined) {
+          normalized[targetField] = row[originalHeader] ? row[originalHeader].toString().trim() : '';
         }
       }
       
       // Telefon numarasını formatla
       if (normalized.phone) {
         let phone = normalized.phone.replace(/\s/g, '').replace(/-/g, '');
-        // Türkiye numarası için format
         if (phone.startsWith('0')) {
           phone = '+9' + phone;
         } else if (phone.startsWith('5') && phone.length === 10) {
           phone = '+90' + phone;
-        } else if (!phone.startsWith('+')) {
+        } else if (!phone.startsWith('+') && phone.length > 0) {
           phone = '+' + phone;
         }
         normalized.phone = phone;
       }
       
       return normalized;
-    }).filter(sub => sub.phone || sub.email); // En az telefon veya email olmalı
+    }).filter(sub => sub.phone || sub.email);
 
-    logger.info(`📊 XLS parse edildi: ${subscribers.length} kayıt bulundu`);
+    logger.info(`📊 XLS eşleştirme uygulandı: ${subscribers.length} geçerli kayıt`);
     
     res.json({ 
       success: true, 
       data: subscribers,
-      total: subscribers.length,
-      headers: Object.keys(rawData[0] || {})
+      total: subscribers.length
     });
   } catch (error) {
-    logger.error('XLS parse hatası:', error);
-    res.status(500).json({ error: 'Dosya işlenirken hata oluştu: ' + error.message });
+    logger.error('XLS mapping hatası:', error);
+    res.status(500).json({ error: 'Veri dönüştürülürken hata oluştu: ' + error.message });
   }
 });
 
