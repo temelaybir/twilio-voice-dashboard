@@ -25,11 +25,12 @@ type ImportStep = 'upload' | 'mapping' | 'preview'
 
 const TARGET_FIELDS = [
   { value: 'skip', label: 'Atla', color: 'bg-gray-100 text-gray-600 border-gray-200' },
-  { value: 'firstName', label: 'Ad', color: 'bg-blue-100 text-blue-700 border-blue-300' },
-  { value: 'lastName', label: 'Soyad', color: 'bg-indigo-100 text-indigo-700 border-indigo-300' },
+  { value: 'fullName', label: 'Ad Soyad', color: 'bg-blue-100 text-blue-700 border-blue-300' },
   { value: 'email', label: 'Email', color: 'bg-green-100 text-green-700 border-green-300' },
   { value: 'phone', label: 'Telefon', color: 'bg-purple-100 text-purple-700 border-purple-300' },
   { value: 'city', label: 'Şehir', color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { value: 'eventDate', label: 'Etkinlik Tarihi', color: 'bg-rose-100 text-rose-700 border-rose-300' },
+  { value: 'eventTime', label: 'Etkinlik Saati', color: 'bg-cyan-100 text-cyan-700 border-cyan-300' },
 ]
 
 // Custom Dropdown Component
@@ -445,21 +446,23 @@ export function SubscriberImportModal({
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-3 py-2 text-left">Ad</th>
-                          <th className="px-3 py-2 text-left">Soyad</th>
+                          <th className="px-3 py-2 text-left">Ad Soyad</th>
                           <th className="px-3 py-2 text-left">Telefon</th>
                           <th className="px-3 py-2 text-left">Email</th>
                           <th className="px-3 py-2 text-left">Şehir</th>
+                          <th className="px-3 py-2 text-left">Tarih</th>
+                          <th className="px-3 py-2 text-left">Saat</th>
                         </tr>
                       </thead>
                       <tbody>
                         {mappedData.slice(0, 20).map((row, i) => (
                           <tr key={i} className="border-t">
-                            <td className="px-3 py-2">{row.firstName || '-'}</td>
-                            <td className="px-3 py-2">{row.lastName || '-'}</td>
+                            <td className="px-3 py-2">{row.fullName || '-'}</td>
                             <td className="px-3 py-2 font-mono text-xs">{row.phone || '-'}</td>
                             <td className="px-3 py-2">{row.email || '-'}</td>
                             <td className="px-3 py-2">{row.city || '-'}</td>
+                            <td className="px-3 py-2">{row.eventDate || '-'}</td>
+                            <td className="px-3 py-2">{row.eventTime || '-'}</td>
                           </tr>
                         ))}
                       </tbody>

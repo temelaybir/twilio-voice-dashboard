@@ -13,8 +13,15 @@ const EmailSubscriber = new EntitySchema({
     email: {
       type: 'varchar',
       length: 255,
-      nullable: false
+      nullable: true  // Email opsiyonel (telefon varsa)
     },
+    // Ad Soyad (tek alan)
+    fullName: {
+      type: 'varchar',
+      length: 200,
+      nullable: true
+    },
+    // Legacy alanlar (geriye uyumluluk için)
     firstName: {
       type: 'varchar',
       length: 100,
@@ -34,6 +41,18 @@ const EmailSubscriber = new EntitySchema({
     city: {
       type: 'varchar',
       length: 100,
+      nullable: true
+    },
+    // Etkinlik Tarihi
+    eventDate: {
+      type: 'varchar',
+      length: 50,
+      nullable: true
+    },
+    // Etkinlik Saati
+    eventTime: {
+      type: 'varchar',
+      length: 50,
       nullable: true
     },
     // Ek veriler (JSON formatında): {"clinic": "Istanbul", "patient_id": "123"}
@@ -89,11 +108,6 @@ const EmailSubscriber = new EntitySchema({
   },
   indices: [
     {
-      name: 'idx_subscriber_email_list',
-      columns: ['email', 'listId'],
-      unique: true
-    },
-    {
       name: 'idx_subscriber_list',
       columns: ['listId']
     },
@@ -104,6 +118,10 @@ const EmailSubscriber = new EntitySchema({
     {
       name: 'idx_subscriber_unsubscribe_token',
       columns: ['unsubscribeToken']
+    },
+    {
+      name: 'idx_subscriber_phone',
+      columns: ['phone']
     }
   ]
 });

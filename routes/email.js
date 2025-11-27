@@ -668,21 +668,23 @@ router.post('/subscribers/parse-xls', express.raw({ type: ['application/vnd.ms-e
 
     // Header mapping önerileri (Türkçe ve İngilizce destekli)
     const headerSuggestions = {
-      // Ad
-      'ad': 'firstName',
-      'isim': 'firstName',
-      'name': 'firstName',
-      'firstname': 'firstName',
-      'first_name': 'firstName',
-      'first name': 'firstName',
-      'adı': 'firstName',
-      // Soyad
-      'soyad': 'lastName',
-      'soyadı': 'lastName',
-      'lastname': 'lastName',
-      'last_name': 'lastName',
-      'last name': 'lastName',
-      'surname': 'lastName',
+      // Ad Soyad (fullName)
+      'ad soyad': 'fullName',
+      'adsoyad': 'fullName',
+      'ad-soyad': 'fullName',
+      'isim soyisim': 'fullName',
+      'fullname': 'fullName',
+      'full_name': 'fullName',
+      'full name': 'fullName',
+      'name': 'fullName',
+      'ad': 'fullName',
+      'isim': 'fullName',
+      'contact': 'fullName',
+      'contact name': 'fullName',
+      'main contact': 'fullName',
+      'lead title': 'fullName',
+      'müşteri': 'fullName',
+      'hasta': 'fullName',
       // Email
       'email': 'email',
       'e-mail': 'email',
@@ -704,7 +706,24 @@ router.post('/subscribers/parse-xls', express.raw({ type: ['application/vnd.ms-e
       'city': 'city',
       'il': 'city',
       'province': 'city',
-      'konum': 'city'
+      'konum': 'city',
+      'pipeline': 'city',
+      // Etkinlik Tarihi
+      'tarih': 'eventDate',
+      'date': 'eventDate',
+      'event date': 'eventDate',
+      'event_date': 'eventDate',
+      'etkinlik tarihi': 'eventDate',
+      'randevu tarihi': 'eventDate',
+      'appointment date': 'eventDate',
+      // Etkinlik Saati
+      'saat': 'eventTime',
+      'time': 'eventTime',
+      'event time': 'eventTime',
+      'event_time': 'eventTime',
+      'etkinlik saati': 'eventTime',
+      'randevu saati': 'eventTime',
+      'appointment time': 'eventTime'
     };
 
     // Her header için öneri oluştur

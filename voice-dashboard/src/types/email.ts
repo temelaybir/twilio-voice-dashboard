@@ -25,11 +25,14 @@ export interface EmailList {
 
 export interface EmailSubscriber {
   id: number
-  email: string
+  email?: string
+  fullName?: string
   firstName?: string
   lastName?: string
   phone?: string
   city?: string
+  eventDate?: string
+  eventTime?: string
   customFields?: string // JSON string
   listId: number
   status: 'active' | 'unsubscribed' | 'bounced' | 'complained'
@@ -147,10 +150,13 @@ export interface ListFormData {
 
 export interface SubscriberFormData {
   email?: string
+  fullName?: string
   firstName?: string
   lastName?: string
   phone?: string
   city?: string
+  eventDate?: string
+  eventTime?: string
   customFields?: Record<string, string>
   listId: number
 }
