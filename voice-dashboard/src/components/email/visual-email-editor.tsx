@@ -48,19 +48,43 @@ export function VisualEmailEditor({
   const [saving, setSaving] = useState(false)
   const [editorReady, setEditorReady] = useState(false)
 
-  const onReady = () => {
+  const onReady = (unlayer: any) => {
+    console.log('🟢 Unlayer Editor Ready!', unlayer)
     setEditorReady(true)
     
-    if (initialDesign && emailEditorRef.current?.editor) {
-      emailEditorRef.current.editor.loadDesign(initialDesign)
+    if (initialDesign) {
+      unlayer.loadDesign(initialDesign)
     }
   }
 
+  const onLoad = () => {
+    console.log('🔵 Unlayer Editor Loaded')
+    // Fallback: 2 saniye sonra ready olarak işaretle
+    setTimeout(() => {
+      if (!editorReady) {
+        console.log('🟡 Fallback: Setting editorReady to true')
+        setEditorReady(true)
+      }
+    }, 2000)
+  }
+
+  const getEditor = () => {
+    return emailEditorRef.current?.editor || emailEditorRef.current
+  }
+
   const handleSave = () => {
-    if (!emailEditorRef.current?.editor) return
+    const editor = getEditor()
+    console.log('🔵 handleSave called, editor:', editor)
+    
+    if (!editor?.exportHtml) {
+      console.error('❌ Editor not ready')
+      alert('Editör henüz hazır değil, lütfen bekleyin.')
+      return
+    }
     
     setSaving(true)
-    emailEditorRef.current.editor.exportHtml((data: any) => {
+    editor.exportHtml((data: any) => {
+      console.log('🟢 Export HTML success:', data)
       const { design, html } = data
       onSave({ html, design, name })
       setSaving(false)
@@ -68,9 +92,15 @@ export function VisualEmailEditor({
   }
 
   const handlePreview = () => {
-    if (!emailEditorRef.current?.editor) return
+    const editor = getEditor()
+    console.log('🔵 handlePreview called, editor:', editor)
     
-    emailEditorRef.current.editor.exportHtml((data: any) => {
+    if (!editor?.exportHtml) {
+      alert('Editör henüz hazır değil, lütfen bekleyin.')
+      return
+    }
+    
+    editor.exportHtml((data: any) => {
       const { html } = data
       const previewWindow = window.open('', '_blank')
       if (previewWindow) {
@@ -81,9 +111,15 @@ export function VisualEmailEditor({
   }
 
   const handleExportHtml = () => {
-    if (!emailEditorRef.current?.editor) return
+    const editor = getEditor()
+    console.log('🔵 handleExportHtml called, editor:', editor)
     
-    emailEditorRef.current.editor.exportHtml((data: any) => {
+    if (!editor?.exportHtml) {
+      alert('Editör henüz hazır değil, lütfen bekleyin.')
+      return
+    }
+    
+    editor.exportHtml((data: any) => {
       const { html } = data
       const blob = new Blob([html], { type: 'text/html' })
       const url = URL.createObjectURL(blob)
@@ -176,7 +212,6 @@ export function VisualEmailEditor({
                 variant="ghost"
                 size="sm"
                 onClick={handlePreview}
-                disabled={!editorReady}
                 className="text-white hover:bg-white/20 h-8"
               >
                 <Eye className="h-4 w-4 mr-1" />
@@ -187,7 +222,6 @@ export function VisualEmailEditor({
                 variant="ghost"
                 size="sm"
                 onClick={handleExportHtml}
-                disabled={!editorReady}
                 className="text-white hover:bg-white/20 h-8"
               >
                 <FileCode className="h-4 w-4 mr-1" />
@@ -208,7 +242,7 @@ export function VisualEmailEditor({
               
               <Button
                 onClick={handleSave}
-                disabled={!editorReady || saving || !name.trim()}
+                disabled={saving || !name.trim()}
                 size="sm"
                 className="bg-white text-purple-700 hover:bg-white/90 font-semibold h-8"
               >
@@ -249,6 +283,7 @@ export function VisualEmailEditor({
           <EmailEditor
             ref={emailEditorRef}
             onReady={onReady}
+            onLoad={onLoad}
             options={editorOptions}
           />
           
