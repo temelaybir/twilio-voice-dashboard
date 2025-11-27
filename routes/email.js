@@ -1261,14 +1261,7 @@ router.post('/campaigns/:id/send', async (req, res) => {
     campaign.totalRecipients = subscribers.length;
     await campaignRepo.save(campaign);
     
-    // Response'u hemen dön, gönderim arka planda devam etsin
-    res.json({ 
-      success: true, 
-      message: 'Kampanya gönderimi başlatıldı',
-      totalRecipients: subscribers.length 
-    });
-    
-    // Arka planda email gönderimi
+    // Vercel serverless'ta senkron gönderim (response en sonda)
     const unsubscribeBaseUrl = process.env.FRONTEND_URL || process.env.WEBHOOK_BASE_URL || 'http://localhost:3000';
     
     let sentCount = 0;
@@ -1391,12 +1384,18 @@ router.post('/campaigns/:id/send', async (req, res) => {
     
     logger.info(`✅ Kampanya tamamlandı: ${campaign.name} - ${sentCount} gönderildi, ${failedCount} başarısız`);
     
+    // Vercel serverless: Response en sonda dönmeli
+    res.json({ 
+      success: true, 
+      message: `Kampanya gönderildi: ${sentCount} başarılı, ${failedCount} başarısız`,
+      totalRecipients: subscribers.length,
+      sentCount,
+      failedCount
+    });
+    
   } catch (error) {
     logger.error('Kampanya gönderim hatası:', error);
-    // Eğer response henüz gönderilmemişse
-    if (!res.headersSent) {
-      res.status(500).json({ error: error.message });
-    }
+    res.status(500).json({ error: error.message });
   }
 });
 
