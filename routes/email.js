@@ -19,6 +19,35 @@ const rateLimitStore = {
   dailyResetDate: new Date().toDateString()
 };
 
+// Database initialization middleware
+async function ensureDatabase(req, res, next) {
+  try {
+    const { AppDataSource, initializeDatabase } = require('../config/database');
+    
+    if (!AppDataSource) {
+      logger.error('AppDataSource is null');
+      return res.status(503).json({ error: 'Database not configured' });
+    }
+    
+    if (!AppDataSource.isInitialized) {
+      logger.info('🔄 Database initializing...');
+      const success = await initializeDatabase();
+      if (!success) {
+        return res.status(503).json({ error: 'Database initialization failed' });
+      }
+      logger.info('✅ Database initialized successfully');
+    }
+    
+    next();
+  } catch (error) {
+    logger.error('Database middleware error:', error);
+    return res.status(503).json({ error: 'Database error: ' + error.message });
+  }
+}
+
+// Tüm email route'larına database middleware uygula
+router.use(ensureDatabase);
+
 // Rate limit ayarları (Google Workspace limitleri)
 const RATE_LIMITS = {
   emailsPerMinute: parseInt(process.env.BULK_EMAIL_RATE_PER_MINUTE || '30'),
