@@ -723,7 +723,14 @@ router.post('/subscribers/parse-xls', express.raw({ type: ['application/vnd.ms-e
       'event_time': 'eventTime',
       'etkinlik saati': 'eventTime',
       'randevu saati': 'eventTime',
-      'appointment time': 'eventTime'
+      'appointment time': 'eventTime',
+      // Stage (Aşama)
+      'stage': 'stage',
+      'aşama': 'stage',
+      'asama': 'stage',
+      'lead stage': 'stage',
+      'durum': 'stage',
+      'status': 'stage'
     };
 
     // Her header için öneri oluştur

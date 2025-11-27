@@ -29,6 +29,7 @@ const TARGET_FIELDS = [
   { value: 'email', label: 'Email', color: 'bg-green-100 text-green-700 border-green-300' },
   { value: 'phone', label: 'Telefon', color: 'bg-purple-100 text-purple-700 border-purple-300' },
   { value: 'city', label: 'Şehir', color: 'bg-orange-100 text-orange-700 border-orange-300' },
+  { value: 'stage', label: 'Stage', color: 'bg-amber-100 text-amber-700 border-amber-300' },
   { value: 'eventDate', label: 'Etkinlik Tarihi', color: 'bg-rose-100 text-rose-700 border-rose-300' },
   { value: 'eventTime', label: 'Etkinlik Saati', color: 'bg-cyan-100 text-cyan-700 border-cyan-300' },
 ]
@@ -450,6 +451,7 @@ export function SubscriberImportModal({
                           <th className="px-3 py-2 text-left">Telefon</th>
                           <th className="px-3 py-2 text-left">Email</th>
                           <th className="px-3 py-2 text-left">Şehir</th>
+                          <th className="px-3 py-2 text-left">Stage</th>
                           <th className="px-3 py-2 text-left">Tarih</th>
                           <th className="px-3 py-2 text-left">Saat</th>
                         </tr>
@@ -461,6 +463,7 @@ export function SubscriberImportModal({
                             <td className="px-3 py-2 font-mono text-xs">{row.phone || '-'}</td>
                             <td className="px-3 py-2">{row.email || '-'}</td>
                             <td className="px-3 py-2">{row.city || '-'}</td>
+                            <td className="px-3 py-2">{row.stage || '-'}</td>
                             <td className="px-3 py-2">{row.eventDate || '-'}</td>
                             <td className="px-3 py-2">{row.eventTime || '-'}</td>
                           </tr>

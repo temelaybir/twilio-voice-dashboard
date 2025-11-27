@@ -33,6 +33,7 @@ export interface EmailSubscriber {
   city?: string
   eventDate?: string
   eventTime?: string
+  stage?: string
   customFields?: string // JSON string
   listId: number
   status: 'active' | 'unsubscribed' | 'bounced' | 'complained'
@@ -155,6 +156,7 @@ export interface SubscriberFormData {
   lastName?: string
   phone?: string
   city?: string
+  stage?: string
   eventDate?: string
   eventTime?: string
   customFields?: Record<string, string>

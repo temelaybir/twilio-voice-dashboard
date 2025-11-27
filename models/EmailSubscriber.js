@@ -55,6 +55,12 @@ const EmailSubscriber = new EntitySchema({
       length: 50,
       nullable: true
     },
+    // Stage (Aşama)
+    stage: {
+      type: 'varchar',
+      length: 100,
+      nullable: true
+    },
     // Ek veriler (JSON formatında): {"clinic": "Istanbul", "patient_id": "123"}
     customFields: {
       type: 'text',
