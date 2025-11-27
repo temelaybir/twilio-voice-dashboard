@@ -95,63 +95,17 @@ export function VisualEmailEditor({
     })
   }
 
-  // Unlayer editor options
-  const editorOptions = {
-    projectId: 1, // Free tier
-    displayMode: 'email' as const,
-    locale: 'tr-TR',
+  // Unlayer editor options - simplified for type compatibility
+  const editorOptions: any = {
+    displayMode: 'email',
     appearance: {
-      theme: 'modern_light',
-      panels: {
-        tools: {
-          dock: 'left'
-        }
-      }
-    },
-    tools: {
-      // Özel araçlar
+      theme: 'modern_light'
     },
     features: {
       textEditor: {
         spellChecker: true
       }
-    },
-    // Türkçe çeviriler
-    translations: {
-      'tr-TR': {
-        'editor.content': 'İçerik',
-        'editor.blocks': 'Bloklar',
-        'editor.body': 'Gövde',
-        'editor.images': 'Görseller',
-        'editor.text': 'Metin',
-        'editor.button': 'Buton',
-        'editor.divider': 'Ayırıcı',
-        'editor.social': 'Sosyal',
-        'editor.html': 'HTML',
-        'editor.menu': 'Menü',
-        'editor.columns': 'Sütunlar',
-        'editor.heading': 'Başlık',
-        'editor.image': 'Görsel',
-        'editor.timer': 'Zamanlayıcı',
-        'editor.video': 'Video',
-        'design.colors': 'Renkler',
-        'design.fonts': 'Fontlar',
-        'design.spacing': 'Boşluk',
-        'design.borders': 'Kenarlıklar'
-      }
-    },
-    // Hazır şablonlar
-    mergeTags: [
-      { name: 'Ad Soyad', value: '{{name}}' },
-      { name: 'Email', value: '{{email}}' },
-      { name: 'Telefon', value: '{{phone}}' },
-      { name: 'Şehir', value: '{{city}}' },
-      { name: 'Abonelikten Çık', value: '{{unsubscribeUrl}}' }
-    ],
-    // Özel stiller
-    customCSS: `
-      .blockbuilder-branding { display: none !important; }
-    `
+    }
   }
 
   // Hazır şablon temaları
