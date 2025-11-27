@@ -58,9 +58,11 @@ export function SubscriberList({
   const [searchTerm, setSearchTerm] = useState('')
 
   const filteredSubscribers = subscribers.filter(sub =>
-    sub.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (sub.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (sub.fullName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (sub.firstName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (sub.lastName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    (sub.lastName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (sub.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   )
 
   const getStatusBadge = (status: string) => {
