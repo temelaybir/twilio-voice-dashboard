@@ -4,7 +4,6 @@ import React, { useRef, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { 
   Save, 
   Download, 
@@ -229,11 +228,8 @@ export function VisualEmailEditor({
               <span className="font-semibold text-lg">Görsel Email Editörü</span>
             </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor="templateName" className="text-sm text-gray-600">
-                Şablon Adı:
-              </Label>
+              <span className="text-sm text-gray-600">Şablon Adı:</span>
               <Input
-                id="templateName"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Şablon adını girin..."
