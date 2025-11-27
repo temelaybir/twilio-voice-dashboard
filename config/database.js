@@ -8,6 +8,13 @@ const logger = require('./logger');
 let EventHistory = null;
 let Call = null;
 
+// Email modülü entity'leri
+let EmailTemplate = null;
+let EmailList = null;
+let EmailSubscriber = null;
+let EmailCampaign = null;
+let EmailSend = null;
+
 // Entity dosyalarının path'lerini kontrol et
 const eventHistoryPath = path.join(__dirname, '../models/EventHistory.js');
 const callPath = path.join(__dirname, '../models/Call.js');
@@ -56,6 +63,30 @@ try {
   logger.debug('Call entity import edilemedi (opsiyonel):', error.message);
 }
 
+// Email modülü entity'lerini import et
+try {
+  const emailTemplateModule = require('../models/EmailTemplate');
+  EmailTemplate = emailTemplateModule.EmailTemplate;
+  
+  const emailListModule = require('../models/EmailList');
+  EmailList = emailListModule.EmailList;
+  
+  const emailSubscriberModule = require('../models/EmailSubscriber');
+  EmailSubscriber = emailSubscriberModule.EmailSubscriber;
+  
+  const emailCampaignModule = require('../models/EmailCampaign');
+  EmailCampaign = emailCampaignModule.EmailCampaign;
+  
+  const emailSendModule = require('../models/EmailSend');
+  EmailSend = emailSendModule.EmailSend;
+  
+  if (EmailTemplate && EmailList && EmailSubscriber && EmailCampaign && EmailSend) {
+    logger.info('✅ Email modülü entity\'leri başarıyla import edildi');
+  }
+} catch (error) {
+  logger.warn('⚠️ Email modülü entity\'leri import edilemedi (opsiyonel):', error.message);
+}
+
 // Vercel/Production environment kontrolü
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 
@@ -77,7 +108,15 @@ if (hasMySQL) {
       throw new Error('EventHistory entity bulunamadı');
     }
     
-    const entities = Call ? [EventHistory, Call] : [EventHistory];
+    // Entity listesini oluştur
+    const entities = [EventHistory];
+    if (Call) entities.push(Call);
+    if (EmailTemplate) entities.push(EmailTemplate);
+    if (EmailList) entities.push(EmailList);
+    if (EmailSubscriber) entities.push(EmailSubscriber);
+    if (EmailCampaign) entities.push(EmailCampaign);
+    if (EmailSend) entities.push(EmailSend);
+    
     logger.info(`MySQL için ${entities.length} entity yüklenecek: ${entities.map(e => e.options?.name || 'unknown').join(', ')}`);
     
     AppDataSource = new DataSource({
@@ -121,7 +160,15 @@ else if (!isProduction) {
       throw new Error('EventHistory entity bulunamadı');
     }
     
-    const entities = Call ? [EventHistory, Call] : [EventHistory];
+    // Entity listesini oluştur
+    const entities = [EventHistory];
+    if (Call) entities.push(Call);
+    if (EmailTemplate) entities.push(EmailTemplate);
+    if (EmailList) entities.push(EmailList);
+    if (EmailSubscriber) entities.push(EmailSubscriber);
+    if (EmailCampaign) entities.push(EmailCampaign);
+    if (EmailSend) entities.push(EmailSend);
+    
     logger.info(`SQLite için ${entities.length} entity yüklenecek: ${entities.map(e => e.options?.name || 'unknown').join(', ')}`);
     
     // SQLite veritabanı bağlantısı

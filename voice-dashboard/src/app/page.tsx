@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
-import { RefreshCw, Phone, PhoneCall, History, Settings, Activity, FileText, LogOut } from 'lucide-react'
+import { RefreshCw, Phone, PhoneCall, History, Settings, Activity, FileText, LogOut, Mail, Users, ChevronDown } from 'lucide-react'
 
 import { startCall, startBulkCall, getAllCallHistoryForExport } from '@/lib/api'
+import { getLists, getListPhones } from '@/lib/email-api'
+import type { EmailList } from '@/types/email'
 import { useSocket } from '@/hooks/use-socket'
 import { useCallHistory } from '@/hooks/use-call-history'
 import { formatPhoneNumber, formatTimestamp, isValidPhoneNumber, getCallStatusColor } from '@/lib/utils'
@@ -29,6 +31,13 @@ export default function DashboardPage() {
   const [message, setMessage] = useState('')
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  
+  // Email listeleri entegrasyonu
+  const [emailLists, setEmailLists] = useState<EmailList[]>([])
+  const [selectedListId, setSelectedListId] = useState<number | null>(null)
+  const [listPhones, setListPhones] = useState<Array<{phone: string; name: string; city: string}>>([])
+  const [loadingLists, setLoadingLists] = useState(false)
+  const [showListSelector, setShowListSelector] = useState(false)
   
   const { socket, isConnected, events, clearEvents, isHydrated, loadEventHistory, isPolling, lastUpdate } = useSocket()
   const { 
@@ -74,6 +83,51 @@ export default function DashboardPage() {
       setIsLoading(false)
     }
   }
+
+  // Email listelerini yükle
+  const loadEmailLists = useCallback(async () => {
+    try {
+      setLoadingLists(true)
+      const response = await getLists()
+      setEmailLists(response.data.filter(list => list.subscriberCount > 0))
+    } catch (error) {
+      console.error('Liste yükleme hatası:', error)
+    } finally {
+      setLoadingLists(false)
+    }
+  }, [])
+
+  // Seçili listeden telefon numaralarını yükle
+  const loadListPhones = useCallback(async (listId: number) => {
+    try {
+      setLoadingLists(true)
+      const response = await getListPhones(listId)
+      setListPhones(response.data)
+      
+      // Numaraları textarea'ya ekle
+      const phoneNumbers = response.data.map(p => p.phone).join('\n')
+      setBulkNumbers(phoneNumbers)
+      setMessage(`✅ ${response.data.length} numara yüklendi: ${response.list.name}`)
+    } catch (error: any) {
+      setMessage(`❌ Liste yükleme hatası: ${error.message}`)
+    } finally {
+      setLoadingLists(false)
+      setShowListSelector(false)
+    }
+  }, [])
+
+  // Liste seçildiğinde
+  const handleSelectList = (listId: number) => {
+    setSelectedListId(listId)
+    loadListPhones(listId)
+  }
+
+  // Sayfa yüklendiğinde listeleri getir
+  useEffect(() => {
+    if (isBulkMode) {
+      loadEmailLists()
+    }
+  }, [isBulkMode, loadEmailLists])
 
   // Toplu çağrı
   const handleBulkCall = async () => {
@@ -244,6 +298,17 @@ export default function DashboardPage() {
                   Günlük Özet
                 </Button>
               </Link>
+              
+              <Link href="/email-campaigns">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                >
+                  <Mail className="h-4 w-4" />
+                  Email Kampanyaları
+                </Button>
+              </Link>
             </div>
 
             {/* Logout Button */}
@@ -320,13 +385,78 @@ export default function DashboardPage() {
                 ) : (
                   // Toplu çağrı formu
                   <>
+                    {/* Liste Seçici */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        📋 Listeden Yükle (Opsiyonel)
+                      </label>
+                      <div className="relative">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowListSelector(!showListSelector)}
+                          disabled={loadingLists}
+                          className="w-full justify-between"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            {selectedListId 
+                              ? emailLists.find(l => l.id === selectedListId)?.name 
+                              : 'Email listesinden numaraları yükle'}
+                          </span>
+                          {loadingLists ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                        
+                        {showListSelector && emailLists.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-[200px] overflow-y-auto">
+                            {emailLists.map(list => (
+                              <button
+                                key={list.id}
+                                onClick={() => handleSelectList(list.id)}
+                                className="w-full px-3 py-2 text-left hover:bg-gray-50 flex justify-between items-center border-b last:border-b-0"
+                              >
+                                <span>{list.name}</span>
+                                <Badge variant="secondary" className="text-xs">
+                                  {list.subscriberCount} kişi
+                                </Badge>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {showListSelector && emailLists.length === 0 && !loadingLists && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg p-3 text-center text-sm text-gray-500">
+                            Henüz liste yok.{' '}
+                            <Link href="/email-campaigns" className="text-blue-600 hover:underline">
+                              Liste oluşturun
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-white px-2 text-gray-500">veya manuel girin</span>
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
                       <label className="block text-sm font-medium text-gray-700">
                         📝 Telefon Numaraları (Her satıra bir numara)
                       </label>
                       <textarea
                         value={bulkNumbers}
-                        onChange={(e) => setBulkNumbers(e.target.value)}
+                        onChange={(e) => {
+                          setBulkNumbers(e.target.value)
+                          setSelectedListId(null)
+                        }}
                         placeholder={`+905551234567\n+905552345678\n+905553456789\n...`}
                         className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                         rows={6}
@@ -336,6 +466,18 @@ export default function DashboardPage() {
                         <span>
                           📊 {getNumberCount()}/10 numara • ✅ {getValidNumberCount()} geçerli
                         </span>
+                        {bulkNumbers && (
+                          <button 
+                            onClick={() => {
+                              setBulkNumbers('')
+                              setSelectedListId(null)
+                              setListPhones([])
+                            }}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Temizle
+                          </button>
+                        )}
                       </div>
                     </div>
 

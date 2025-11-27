@@ -356,6 +356,7 @@ app.post('/api/test-email', async (req, res) => {
 
 // Rotaları yükle (static files'dan ÖNCE!)
 app.use('/api/calls', require('./routes/voice'));
+app.use('/api/email', require('./routes/email'));
 
 // Static files (API routes'tan SONRA!)
 app.use(express.static(path.join(__dirname, 'public')));
