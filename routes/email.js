@@ -591,15 +591,24 @@ router.post('/subscribers/bulk', async (req, res) => {
     
     for (const sub of subscribers) {
       try {
-        if (!sub.email) {
+        // Email veya telefon olmalı
+        if (!sub.email && !sub.phone) {
           results.skipped++;
           continue;
         }
         
-        // Aynı listede aynı email var mı?
-        const existing = await subscriberRepo.findOne({
-          where: { email: sub.email, listId: parseInt(listId) }
-        });
+        // Aynı listede aynı email veya telefon var mı?
+        let existing = null;
+        if (sub.email) {
+          existing = await subscriberRepo.findOne({
+            where: { email: sub.email, listId: parseInt(listId) }
+          });
+        }
+        if (!existing && sub.phone) {
+          existing = await subscriberRepo.findOne({
+            where: { phone: sub.phone, listId: parseInt(listId) }
+          });
+        }
         
         if (existing) {
           results.skipped++;
@@ -607,11 +616,15 @@ router.post('/subscribers/bulk', async (req, res) => {
         }
         
         const subscriber = subscriberRepo.create({
-          email: sub.email,
-          firstName: sub.firstName || sub.first_name || sub.ad || sub.name,
-          lastName: sub.lastName || sub.last_name || sub.soyad,
-          phone: sub.phone || sub.telefon || sub.tel,
-          city: sub.city || sub.sehir || sub.şehir || sub.il,
+          email: sub.email || null,
+          fullName: sub.fullName || sub.full_name || sub.name || sub.ad_soyad || null,
+          firstName: sub.firstName || sub.first_name || sub.ad || null,
+          lastName: sub.lastName || sub.last_name || sub.soyad || null,
+          phone: sub.phone || sub.telefon || sub.tel || null,
+          city: sub.city || sub.sehir || sub.şehir || sub.il || null,
+          stage: sub.stage || sub.aşama || sub.durum || null,
+          eventDate: sub.eventDate || sub.event_date || sub.tarih || null,
+          eventTime: sub.eventTime || sub.event_time || sub.saat || null,
           customFields: sub.customFields ? JSON.stringify(sub.customFields) : null,
           listId: parseInt(listId),
           unsubscribeToken: generateUnsubscribeToken()
@@ -620,7 +633,7 @@ router.post('/subscribers/bulk', async (req, res) => {
         await subscriberRepo.save(subscriber);
         results.added++;
       } catch (err) {
-        results.errors.push({ email: sub.email, error: err.message });
+        results.errors.push({ email: sub.email || sub.phone, error: err.message });
       }
     }
     
@@ -669,6 +682,68 @@ router.delete('/subscribers/:id', async (req, res) => {
     res.json({ success: true, message: 'Abone silindi' });
   } catch (error) {
     logger.error('Abone silme hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/email/subscribers/bulk - Toplu abone sil
+router.delete('/subscribers/bulk', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { EmailList } = require('../models/EmailList');
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const listRepo = AppDataSource.getRepository(EmailList);
+    
+    const { ids, listId } = req.body;
+    
+    if (!ids && !listId) {
+      return res.status(400).json({ error: 'ids array veya listId gerekli' });
+    }
+    
+    let deletedCount = 0;
+    
+    if (listId) {
+      // Listedeki tüm aboneleri sil
+      const result = await subscriberRepo.delete({ listId: parseInt(listId) });
+      deletedCount = result.affected || 0;
+      
+      // Liste abone sayısını sıfırla
+      const list = await listRepo.findOne({ where: { id: parseInt(listId) } });
+      if (list) {
+        list.subscriberCount = 0;
+        await listRepo.save(list);
+      }
+      
+      logger.info(`🗑️ Listeden toplu silme: ${deletedCount} abone silindi (Liste ID: ${listId})`);
+    } else if (Array.isArray(ids) && ids.length > 0) {
+      // Seçili aboneleri sil
+      for (const id of ids) {
+        const subscriber = await subscriberRepo.findOne({ where: { id: parseInt(id) } });
+        if (subscriber) {
+          const subListId = subscriber.listId;
+          await subscriberRepo.delete(parseInt(id));
+          deletedCount++;
+          
+          // Liste abone sayısını güncelle
+          const list = await listRepo.findOne({ where: { id: subListId } });
+          if (list) {
+            list.subscriberCount = Math.max(0, (list.subscriberCount || 0) - 1);
+            await listRepo.save(list);
+          }
+        }
+      }
+      
+      logger.info(`🗑️ Toplu silme: ${deletedCount} abone silindi`);
+    }
+    
+    res.json({ success: true, deletedCount, message: `${deletedCount} abone silindi` });
+  } catch (error) {
+    logger.error('Toplu silme hatası:', error);
     res.status(500).json({ error: error.message });
   }
 });

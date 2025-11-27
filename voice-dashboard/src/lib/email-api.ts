@@ -239,6 +239,38 @@ export async function deleteSubscriber(id: number): Promise<{ success: boolean; 
   return data
 }
 
+// Toplu abone sil
+export async function bulkDeleteSubscribers(ids: number[]): Promise<{ success: boolean; deletedCount: number; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/email/subscribers/bulk`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids })
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
+// Listedeki tüm aboneleri sil
+export async function deleteAllSubscribersInList(listId: number): Promise<{ success: boolean; deletedCount: number; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/email/subscribers/bulk`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ listId })
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
 // XLS/XLSX dosyasını parse et
 export async function parseXlsFile(file: File): Promise<{
   success: boolean

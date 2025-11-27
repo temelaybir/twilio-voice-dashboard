@@ -21,7 +21,10 @@ import {
   Users,
   Mail,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CheckSquare,
+  Square,
+  Loader2
 } from 'lucide-react'
 import type { EmailSubscriber, EmailList } from '@/types/email'
 
@@ -40,6 +43,8 @@ interface SubscriberListProps {
   onAddSubscriber: () => void
   onBulkImport: () => void
   onDelete: (id: number) => void
+  onBulkDelete?: (ids: number[]) => Promise<void>
+  onDeleteAllInList?: (listId: number) => Promise<void>
   onPageChange: (page: number) => void
 }
 
@@ -53,9 +58,13 @@ export function SubscriberList({
   onAddSubscriber,
   onBulkImport,
   onDelete,
+  onBulkDelete,
+  onDeleteAllInList,
   onPageChange
 }: SubscriberListProps) {
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [deleting, setDeleting] = useState(false)
 
   const filteredSubscribers = subscribers.filter(sub =>
     (sub.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -86,6 +95,56 @@ export function SubscriberList({
   }
 
   const selectedList = lists.find(l => l.id === selectedListId)
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredSubscribers.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(filteredSubscribers.map(s => s.id))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return
+    if (!confirm(`${selectedIds.length} abone silinecek. Emin misiniz?`)) return
+    
+    setDeleting(true)
+    try {
+      if (onBulkDelete) {
+        await onBulkDelete(selectedIds)
+      }
+      setSelectedIds([])
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleDeleteAllInList = async () => {
+    if (!selectedListId || !onDeleteAllInList) return
+    if (!confirm(`"${selectedList?.name}" listesindeki TÜM aboneler silinecek. Emin misiniz?`)) return
+    
+    setDeleting(true)
+    try {
+      await onDeleteAllInList(selectedListId)
+      setSelectedIds([])
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const getDisplayName = (sub: EmailSubscriber) => {
+    if (sub.fullName) return sub.fullName
+    if (sub.firstName || sub.lastName) {
+      return `${sub.firstName || ''} ${sub.lastName || ''}`.trim()
+    }
+    return '-'
+  }
 
   return (
     <Card>
@@ -150,6 +209,41 @@ export function SubscriberList({
           </div>
         </div>
 
+        {/* Bulk Actions */}
+        {(selectedIds.length > 0 || selectedListId) && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+            {selectedIds.length > 0 && (
+              <>
+                <span className="text-sm text-gray-600">
+                  {selectedIds.length} abone seçildi
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={deleting}
+                  className="gap-2"
+                >
+                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Seçilenleri Sil
+                </Button>
+              </>
+            )}
+            {selectedListId && onDeleteAllInList && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeleteAllInList}
+                disabled={deleting}
+                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 ml-auto"
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Tüm Listeyi Sil
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* Subscriber Table */}
         {loading ? (
           <div className="space-y-4">
@@ -169,6 +263,15 @@ export function SubscriberList({
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <button onClick={toggleSelectAll} className="p-1 hover:bg-gray-100 rounded">
+                        {selectedIds.length === filteredSubscribers.length ? (
+                          <CheckSquare className="h-4 w-4 text-purple-600" />
+                        ) : (
+                          <Square className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </TableHead>
                     <TableHead>İsim</TableHead>
                     <TableHead>Telefon</TableHead>
                     <TableHead>Email</TableHead>
@@ -180,11 +283,18 @@ export function SubscriberList({
                 </TableHeader>
                 <TableBody>
                   {filteredSubscribers.map(subscriber => (
-                    <TableRow key={subscriber.id}>
+                    <TableRow key={subscriber.id} className={selectedIds.includes(subscriber.id) ? 'bg-purple-50' : ''}>
+                      <TableCell>
+                        <button onClick={() => toggleSelect(subscriber.id)} className="p-1 hover:bg-gray-100 rounded">
+                          {selectedIds.includes(subscriber.id) ? (
+                            <CheckSquare className="h-4 w-4 text-purple-600" />
+                          ) : (
+                            <Square className="h-4 w-4 text-gray-400" />
+                          )}
+                        </button>
+                      </TableCell>
                       <TableCell className="font-medium">
-                        {subscriber.firstName || subscriber.lastName
-                          ? `${subscriber.firstName || ''} ${subscriber.lastName || ''}`.trim()
-                          : '-'}
+                        {getDisplayName(subscriber)}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{subscriber.phone || '-'}</TableCell>
                       <TableCell>{subscriber.email || '-'}</TableCell>
@@ -241,4 +351,3 @@ export function SubscriberList({
     </Card>
   )
 }
-

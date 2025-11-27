@@ -44,6 +44,8 @@ import {
   createSubscriber,
   bulkCreateSubscribers,
   deleteSubscriber,
+  bulkDeleteSubscribers,
+  deleteAllSubscribersInList,
   getCampaigns,
   createCampaign,
   updateCampaign,
@@ -258,6 +260,28 @@ export default function EmailCampaignsPage() {
     loadSubscribers()
     loadData()
     return result.data
+  }
+
+  const handleBulkDeleteSubscribers = async (ids: number[]) => {
+    try {
+      const result = await bulkDeleteSubscribers(ids)
+      setMessage(`✅ ${result.deletedCount} abone silindi`)
+      loadSubscribers()
+      loadData()
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    }
+  }
+
+  const handleDeleteAllInList = async (listId: number) => {
+    try {
+      const result = await deleteAllSubscribersInList(listId)
+      setMessage(`✅ ${result.deletedCount} abone silindi`)
+      loadSubscribers()
+      loadData()
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    }
   }
 
   // Campaign handlers
@@ -512,6 +536,8 @@ Başarısız: ${stats.failed}
               onAddSubscriber={handleAddSubscriber}
               onBulkImport={() => setImportModalOpen(true)}
               onDelete={handleDeleteSubscriber}
+              onBulkDelete={handleBulkDeleteSubscribers}
+              onDeleteAllInList={handleDeleteAllInList}
               onPageChange={setSubscriberPage}
             />
           </TabsContent>
