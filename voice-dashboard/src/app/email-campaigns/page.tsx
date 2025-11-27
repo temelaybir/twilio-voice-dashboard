@@ -257,7 +257,7 @@ export default function EmailCampaignsPage() {
     const result = await bulkCreateSubscribers(subscribers, listId)
     loadSubscribers()
     loadData()
-    return result
+    return result.data
   }
 
   // Campaign handlers

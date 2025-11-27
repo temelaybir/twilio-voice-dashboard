@@ -38,7 +38,7 @@ export function TemplateList({
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
-  const categories = ['all', ...new Set(templates.map(t => t.category))]
+  const categories = ['all', ...Array.from(new Set(templates.map(t => t.category)))]
 
   const filteredTemplates = templates.filter(template => {
     const matchesSearch = 
