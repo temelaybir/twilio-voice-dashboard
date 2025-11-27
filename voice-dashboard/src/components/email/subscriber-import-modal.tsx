@@ -141,19 +141,29 @@ export function SubscriberImportModal({
     setColumnMapping({})
     setPreviewData([])
     
+    const apiUrl = getApiBaseUrl()
+    console.log('🔵 [Import] API Base URL:', apiUrl)
+    console.log('🔵 [Import] File:', file.name, file.size, 'bytes')
+    
     try {
       // Dosyayı buffer olarak oku
       const buffer = await file.arrayBuffer()
       setFileBuffer(buffer)
       
+      const endpoint = `${apiUrl}/email/subscribers/parse-xls`
+      console.log('🔵 [Import] Calling:', endpoint)
+      
       // Backend'e gönder ve parse et
-      const response = await fetch(`${getApiBaseUrl()}/email/subscribers/parse-xls`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream' },
         body: buffer
       })
       
+      console.log('🔵 [Import] Response status:', response.status, response.statusText)
+      
       const data = await response.json()
+      console.log('🔵 [Import] Response data:', data)
       
       if (!response.ok) {
         throw new Error(data.error || 'Parse hatası')
@@ -168,6 +178,7 @@ export function SubscriberImportModal({
       setStep('mapping')
       
     } catch (err: any) {
+      console.error('🔴 [Import] Error:', err)
       setError(err.message || 'Dosya okunamadı')
     } finally {
       setParsing(false)
@@ -190,8 +201,13 @@ export function SubscriberImportModal({
     setParsing(true)
     setError('')
     
+    const apiUrl = getApiBaseUrl()
+    const endpoint = `${apiUrl}/email/subscribers/apply-mapping`
+    console.log('🟢 [Mapping] Calling:', endpoint)
+    console.log('🟢 [Mapping] Column mapping:', columnMapping)
+    
     try {
-      const response = await fetch(`${getApiBaseUrl()}/email/subscribers/apply-mapping`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/octet-stream',
@@ -200,7 +216,10 @@ export function SubscriberImportModal({
         body: fileBuffer
       })
       
+      console.log('🟢 [Mapping] Response status:', response.status, response.statusText)
+      
       const data = await response.json()
+      console.log('🟢 [Mapping] Response data:', data)
       
       if (!response.ok) {
         throw new Error(data.error || 'Eşleştirme hatası')
@@ -210,6 +229,7 @@ export function SubscriberImportModal({
       setStep('preview')
       
     } catch (err: any) {
+      console.error('🔴 [Mapping] Error:', err)
       setError(err.message || 'Eşleştirme uygulanamadı')
     } finally {
       setParsing(false)
