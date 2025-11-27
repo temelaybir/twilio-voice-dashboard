@@ -98,7 +98,7 @@ export function VisualEmailEditor({
   // Unlayer editor options
   const editorOptions = {
     projectId: 1, // Free tier
-    displayMode: 'email',
+    displayMode: 'email' as const,
     locale: 'tr-TR',
     appearance: {
       theme: 'modern_light',
