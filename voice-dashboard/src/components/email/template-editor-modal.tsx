@@ -82,13 +82,7 @@ export function TemplateEditorModal({
           textContent: template.textContent || '',
           category: template.category
         })
-        // Eğer template'te designJson varsa yükle
-        try {
-          const customFields = template.customFields ? JSON.parse(template.customFields as string) : null
-          setDesignJson(customFields?.designJson || null)
-        } catch {
-          setDesignJson(null)
-        }
+        setDesignJson(null)
         // Mevcut şablonu düzenlerken direkt kod editöre git
         setEditorMode('code')
       } else {
