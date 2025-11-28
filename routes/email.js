@@ -1747,7 +1747,11 @@ router.get('/confirm/:token', async (req, res) => {
               </div>
               <div class="detail-row">
                 <span class="label">📅 Data</span>
-                <span class="value">${list?.eventDates || subscriber.eventDate || '-'}</span>
+                <span class="value">${list?.eventDates || '-'}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">📆 Wybrany dzień</span>
+                <span class="value" style="color: ${subscriber.eventDate ? '#22c55e' : '#f59e0b'};">${subscriber.eventDate || 'Nie wybrano'}</span>
               </div>
               <div class="detail-row">
                 <span class="label">🕐 Godzina</span>
