@@ -19,7 +19,9 @@ export interface EmailList {
   description?: string
   city?: string
   cityDisplay?: string // Lehçe locative form (örn: Bydgoszczy, Olsztynie)
-  eventDates?: string
+  eventDates?: string // Geriye uyumluluk
+  eventDay1?: string // 1. Gün (örn: "30 listopada")
+  eventDay2?: string // 2. Gün (örn: "1 grudnia")
   location?: string
   timeSlots?: string // JSON string
   subscriberCount: number
@@ -159,7 +161,9 @@ export interface ListFormData {
   description?: string
   city?: string
   cityDisplay?: string // Lehçe locative form
-  eventDates?: string
+  eventDates?: string // Geriye uyumluluk
+  eventDay1?: string // 1. Gün
+  eventDay2?: string // 2. Gün
   location?: string
   timeSlots?: string[]
 }

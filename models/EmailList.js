@@ -31,10 +31,22 @@ const EmailList = new EntitySchema({
       length: 255,
       nullable: true
     },
-    // Etkinlik tarihleri (örn: "30 listopada - 1 grudia")
+    // Etkinlik tarihleri (örn: "30 listopada - 1 grudia") - geriye uyumluluk
     eventDates: {
       type: 'varchar',
       length: 255,
+      nullable: true
+    },
+    // 1. Gün (örn: "30 listopada")
+    eventDay1: {
+      type: 'varchar',
+      length: 100,
+      nullable: true
+    },
+    // 2. Gün (örn: "1 grudnia")
+    eventDay2: {
+      type: 'varchar',
+      length: 100,
       nullable: true
     },
     // Etkinlik konumu/adresi

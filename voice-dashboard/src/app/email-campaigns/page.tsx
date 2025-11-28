@@ -604,12 +604,16 @@ Başarısız: ${stats.failed}
             <form onSubmit={(e) => {
               e.preventDefault()
               const formData = new FormData(e.currentTarget)
+              const eventDay1 = formData.get('eventDay1') as string
+              const eventDay2 = formData.get('eventDay2') as string
               handleSaveList({
                 name: formData.get('name') as string,
                 description: formData.get('description') as string,
                 city: formData.get('city') as string,
                 cityDisplay: formData.get('cityDisplay') as string,
-                eventDates: formData.get('eventDates') as string,
+                eventDay1: eventDay1,
+                eventDay2: eventDay2,
+                eventDates: `${eventDay1} - ${eventDay2}`, // Geriye uyumluluk
                 location: formData.get('location') as string,
               })
             }}>
@@ -655,15 +659,27 @@ Başarısız: ${stats.failed}
                       </div>
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Etkinlik Tarihleri *</label>
-                      <input
-                        name="eventDates"
-                        defaultValue={(editingList as any)?.eventDates || ''}
-                        required
-                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        placeholder="Örn: 30 listopada - 1 grudnia"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">1. Gün *</label>
+                        <input
+                          name="eventDay1"
+                          defaultValue={(editingList as any)?.eventDay1 || ''}
+                          required
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          placeholder="Örn: 30 listopada"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">2. Gün *</label>
+                        <input
+                          name="eventDay2"
+                          defaultValue={(editingList as any)?.eventDay2 || ''}
+                          required
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          placeholder="Örn: 1 grudnia"
+                        />
+                      </div>
                     </div>
                     
                     <div>
