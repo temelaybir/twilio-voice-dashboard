@@ -370,7 +370,7 @@ export function TemplateEditorModal({
             <p className="text-sm font-medium text-purple-800 mb-2 mt-3">📍 Liste Değişkenleri:</p>
             <div className="flex flex-wrap gap-2">
               {[
-                '{{listCity}}', '{{listEventDates}}', '{{listLocation}}', '{{listName}}'
+                '{{listCity}}', '{{listCityDisplay}}', '{{listEventDates}}', '{{listLocation}}'
               ].map(v => (
                 <code 
                   key={v} 
@@ -382,6 +382,7 @@ export function TemplateEditorModal({
                 </code>
               ))}
             </div>
+            <p className="text-xs text-purple-600 mt-1">💡 <code>listCityDisplay</code> = Lehçe şehir adı (örn: Bydgoszczy)</p>
             <p className="text-xs text-blue-600 mt-2">💡 Kopyalamak için değişkene tıklayın</p>
           </div>
         </div>

@@ -18,6 +18,7 @@ export interface EmailList {
   name: string
   description?: string
   city?: string
+  cityDisplay?: string // Lehçe locative form (örn: Bydgoszczy, Olsztynie)
   eventDates?: string
   location?: string
   timeSlots?: string // JSON string
@@ -157,6 +158,7 @@ export interface ListFormData {
   name: string
   description?: string
   city?: string
+  cityDisplay?: string // Lehçe locative form
   eventDates?: string
   location?: string
   timeSlots?: string[]

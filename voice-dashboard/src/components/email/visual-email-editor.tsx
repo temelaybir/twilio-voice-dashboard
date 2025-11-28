@@ -298,7 +298,7 @@ export function VisualEmailEditor({
             </div>
             <div className="flex gap-1.5 flex-wrap">
               {[
-                { tag: '{{listCity}}', label: 'Şehir' },
+                { tag: '{{listCityDisplay}}', label: 'Şehir (Lehçe)' },
                 { tag: '{{listEventDates}}', label: 'Tarih' },
                 { tag: '{{listLocation}}', label: 'Konum' },
               ].map(({ tag, label }) => (

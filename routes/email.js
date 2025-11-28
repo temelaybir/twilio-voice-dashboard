@@ -372,7 +372,7 @@ router.post('/lists', async (req, res) => {
     const { EmailList } = require('../models/EmailList');
     const listRepo = AppDataSource.getRepository(EmailList);
     
-    const { name, description, city, eventDates, location, timeSlots } = req.body;
+    const { name, description, city, cityDisplay, eventDates, location, timeSlots } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'name zorunludur' });
@@ -385,6 +385,7 @@ router.post('/lists', async (req, res) => {
       name,
       description,
       city: city || null,
+      cityDisplay: cityDisplay || null,
       eventDates: eventDates || null,
       location: location || null,
       timeSlots: JSON.stringify(timeSlots || defaultTimeSlots)
@@ -417,11 +418,12 @@ router.put('/lists/:id', async (req, res) => {
       return res.status(404).json({ error: 'Liste bulunamadı' });
     }
     
-    const { name, description, city, eventDates, location, timeSlots, isActive } = req.body;
+    const { name, description, city, cityDisplay, eventDates, location, timeSlots, isActive } = req.body;
     
     if (name) list.name = name;
     if (description !== undefined) list.description = description;
     if (city !== undefined) list.city = city;
+    if (cityDisplay !== undefined) list.cityDisplay = cityDisplay;
     if (eventDates !== undefined) list.eventDates = eventDates;
     if (location !== undefined) list.location = location;
     if (timeSlots !== undefined) list.timeSlots = JSON.stringify(timeSlots);
@@ -1377,6 +1379,7 @@ router.post('/campaigns/:id/send', async (req, res) => {
           confirmUrl,
           // Liste bazlı değişkenler
           listCity: subscriberList?.city || '',
+          listCityDisplay: subscriberList?.cityDisplay || subscriberList?.city || '',
           listEventDates: subscriberList?.eventDates || '',
           listLocation: subscriberList?.location || '',
           listName: subscriberList?.name || ''

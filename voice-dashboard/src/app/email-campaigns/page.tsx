@@ -608,6 +608,7 @@ Başarısız: ${stats.failed}
                 name: formData.get('name') as string,
                 description: formData.get('description') as string,
                 city: formData.get('city') as string,
+                cityDisplay: formData.get('cityDisplay') as string,
                 eventDates: formData.get('eventDates') as string,
                 location: formData.get('location') as string,
               })
@@ -628,15 +629,30 @@ Başarısız: ${stats.failed}
                   <h3 className="text-sm font-semibold text-purple-800 mb-3">📅 Etkinlik Detayları</h3>
                   
                   <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Şehir *</label>
-                      <input
-                        name="city"
-                        defaultValue={(editingList as any)?.city || ''}
-                        required
-                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        placeholder="Örn: Bydgoszcz"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Şehir *</label>
+                        <input
+                          name="city"
+                          defaultValue={(editingList as any)?.city || ''}
+                          required
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          placeholder="Bydgoszcz"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          Görüntüleme 
+                          <span className="text-xs text-gray-500 ml-1">(Lehçe)</span>
+                        </label>
+                        <input
+                          name="cityDisplay"
+                          defaultValue={(editingList as any)?.cityDisplay || ''}
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          placeholder="Bydgoszczy"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Boş bırakılırsa şehir adı kullanılır</p>
+                      </div>
                     </div>
                     
                     <div>

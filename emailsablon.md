@@ -148,11 +148,11 @@
       <!-- Main content -->
       <div class="content">
         <h2>Przypomnienie wizyty</h2>
-        <h1>Twoje spotkanie dentystyczne w {{listCity}}</h1>
+        <h1>Twoje spotkanie dentystyczne w {{listCityDisplay}}</h1>
 
         <p>
           Witam <strong>{{name}}</strong>,<br />
-          przypominamy o Twoim spotkaniu dentystycznym w {{listCity}}, które odbędzie się
+          przypominamy o Twoim spotkaniu dentystycznym w {{listCityDisplay}}, które odbędzie się
           <strong>{{listEventDates}}</strong> o <strong>{{eventTime}}</strong>.
         </p>
 

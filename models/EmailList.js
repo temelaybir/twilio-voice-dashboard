@@ -25,6 +25,12 @@ const EmailList = new EntitySchema({
       length: 255,
       nullable: true
     },
+    // Şehir adı görüntüleme (Lehçe locative form - örn: Bydgoszczy, Olsztynie)
+    cityDisplay: {
+      type: 'varchar',
+      length: 255,
+      nullable: true
+    },
     // Etkinlik tarihleri (örn: "30 listopada - 1 grudia")
     eventDates: {
       type: 'varchar',
