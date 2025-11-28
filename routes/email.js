@@ -52,7 +52,8 @@ router.use(ensureDatabase);
 const RATE_LIMITS = {
   emailsPerMinute: parseInt(process.env.BULK_EMAIL_RATE_PER_MINUTE || '30'),
   dailyLimit: parseInt(process.env.BULK_EMAIL_DAILY_LIMIT || '2000'),
-  delayBetweenEmails: parseInt(process.env.BULK_EMAIL_DELAY_MS || '2000') // 2 saniye
+  delayBetweenEmails: parseInt(process.env.BULK_EMAIL_DELAY_MS || '500'), // 0.5 saniye (Vercel timeout için optimize)
+  batchSize: parseInt(process.env.BULK_EMAIL_BATCH_SIZE || '50') // Batch başına email sayısı
 };
 
 // SMTP Transporter (lazy initialization)
