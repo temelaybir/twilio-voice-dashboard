@@ -108,6 +108,8 @@ const app = express();
 const corsOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
+  'https://happysmileclinics.net',
+  'https://www.happysmileclinics.net',
 ];
 
 // Production frontend URL varsa ekle
