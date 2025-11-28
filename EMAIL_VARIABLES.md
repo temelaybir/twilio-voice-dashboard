@@ -42,8 +42,8 @@ Otomatik oluşturulan linkler ve sistem bilgileri.
 
 | Değişken | Açıklama | Örnek |
 |----------|----------|-------|
-| `{{confirmUrl}}` | Randevu onay linki | https://domain.com/api/email/confirm/abc123... |
-| `{{unsubscribeUrl}}` | Abonelik iptal linki | https://domain.com/api/email/unsubscribe/xyz789... |
+| `{{confirmUrl}}` | Randevu onay linki | https://happysmileclinics.net/api/email/confirm/abc123... |
+| `{{unsubscribeUrl}}` | Abonelik iptal linki | https://happysmileclinics.net/api/email/unsubscribe/xyz789... |
 | `{{subject}}` | Email konusu | Przypomnienie o wizycie |
 
 ---

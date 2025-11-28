@@ -1337,7 +1337,7 @@ router.post('/campaigns/:id/send', async (req, res) => {
     await campaignRepo.save(campaign);
     
     // Vercel serverless'ta senkron gönderim (response en sonda)
-    const unsubscribeBaseUrl = process.env.FRONTEND_URL || process.env.WEBHOOK_BASE_URL || 'http://localhost:3000';
+    const unsubscribeBaseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
     
     let sentCount = 0;
     let failedCount = 0;
@@ -1364,7 +1364,7 @@ router.post('/campaigns/:id/send', async (req, res) => {
         }
         
         // Confirm URL oluştur
-        const baseUrl = process.env.API_BASE_URL || 'https://twilio-voice-dashboard.vercel.app';
+        const baseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
         const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}`;
         
         // Liste bilgilerini al
