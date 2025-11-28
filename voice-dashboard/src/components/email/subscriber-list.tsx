@@ -159,7 +159,7 @@ export function SubscriberList({
       stage: formData.get('stage') as string,
       eventDate: formData.get('eventDate') as string,
       eventTime: formData.get('eventTime') as string,
-      status: formData.get('status') as string,
+      status: formData.get('status') as 'active' | 'unsubscribed' | 'bounced' | 'complained',
     }
 
     setSaving(true)
