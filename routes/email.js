@@ -1357,6 +1357,9 @@ router.post('/campaigns/:id/send', async (req, res) => {
         const baseUrl = process.env.API_BASE_URL || 'https://twilio-voice-dashboard.vercel.app';
         const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}`;
         
+        // Liste bilgilerini al
+        const subscriberList = await listRepo.findOne({ where: { id: subscriber.listId } });
+        
         // Tüm değişkenleri hazırla
         const fullName = subscriber.fullName || `${subscriber.firstName || ''} ${subscriber.lastName || ''}`.trim();
         const variables = {
@@ -1366,12 +1369,17 @@ router.post('/campaigns/:id/send', async (req, res) => {
           fullName: fullName || 'Değerli Müşterimiz',
           name: fullName || 'Değerli Müşterimiz',
           phone: subscriber.phone || '',
-          city: subscriber.city || '',
+          city: subscriber.city || subscriberList?.city || '',
           stage: subscriber.stage || '',
-          eventDate: subscriber.eventDate || '',
+          eventDate: subscriber.eventDate || subscriberList?.eventDates || '',
           eventTime: subscriber.eventTime || '',
           unsubscribeUrl,
-          confirmUrl
+          confirmUrl,
+          // Liste bazlı değişkenler
+          listCity: subscriberList?.city || '',
+          listEventDates: subscriberList?.eventDates || '',
+          listLocation: subscriberList?.location || '',
+          listName: subscriberList?.name || ''
         };
         
         // Custom fields varsa ekle

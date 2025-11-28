@@ -270,23 +270,41 @@ export function VisualEmailEditor({
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-amber-700">
               <Wand2 className="h-4 w-4" />
-              <span className="font-medium text-sm">Değişkenler:</span>
+              <span className="font-medium text-sm">Kişi:</span>
             </div>
             <div className="flex gap-1.5 flex-wrap">
               {[
-                { tag: '{{name}}', label: 'Ad Soyad' },
-                { tag: '{{fullName}}', label: 'Tam Ad' },
+                { tag: '{{name}}', label: 'Ad' },
                 { tag: '{{email}}', label: 'Email' },
-                { tag: '{{phone}}', label: 'Telefon' },
-                { tag: '{{city}}', label: 'Şehir' },
-                { tag: '{{stage}}', label: 'Aşama' },
-                { tag: '{{eventDate}}', label: 'Tarih' },
+                { tag: '{{phone}}', label: 'Tel' },
                 { tag: '{{eventTime}}', label: 'Saat' },
-                { tag: '{{unsubscribeUrl}}', label: 'Çıkış' },
+                { tag: '{{confirmUrl}}', label: 'Onay' },
               ].map(({ tag, label }) => (
                 <code 
                   key={tag}
                   className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-mono cursor-pointer hover:bg-amber-200 transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText(tag)
+                    alert(`${tag} kopyalandı!`)
+                  }}
+                  title={`${label} - Kopyala`}
+                >
+                  {tag}
+                </code>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 text-purple-700 ml-4">
+              <span className="font-medium text-sm">📍 Liste:</span>
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {[
+                { tag: '{{listCity}}', label: 'Şehir' },
+                { tag: '{{listEventDates}}', label: 'Tarih' },
+                { tag: '{{listLocation}}', label: 'Konum' },
+              ].map(({ tag, label }) => (
+                <code 
+                  key={tag}
+                  className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-mono cursor-pointer hover:bg-purple-200 transition-colors"
                   onClick={() => {
                     navigator.clipboard.writeText(tag)
                     alert(`${tag} kopyalandı!`)

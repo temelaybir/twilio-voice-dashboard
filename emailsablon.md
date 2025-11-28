@@ -148,21 +148,20 @@
       <!-- Main content -->
       <div class="content">
         <h2>Przypomnienie wizyty</h2>
-        <h1>Twoje spotkanie dentystyczne w Olsztynie</h1>
+        <h1>Twoje spotkanie dentystyczne w {{listCity}}</h1>
 
         <p>
           Witam <strong>{{name}}</strong>,<br />
-          przypominamy o Twoim spotkaniu dentystycznym w Olsztynie, które odbędzie się
-          <strong>{{eventDate}}</strong> o <strong>{{eventTime}}</strong>.
+          przypominamy o Twoim spotkaniu dentystycznym w {{listCity}}, które odbędzie się
+          <strong>{{listEventDates}}</strong> o <strong>{{eventTime}}</strong>.
         </p>
 
         <div class="details">
           <p class="label">Miejsce</p>
-          <p class="value">Hampton by Hilton Olsztyn<br />
-          ul. Piłsudskiego 34, 10-577 Olsztyn</p>
+          <p class="value">{{listLocation}}</p>
 
           <p class="label" style="margin-top:10px;">Data i godzina</p>
-          <p class="value">{{eventDate}}, {{eventTime}}</p>
+          <p class="value">{{listEventDates}}, {{eventTime}}</p>
         </div>
 
         <p>
