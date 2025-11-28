@@ -1503,6 +1503,218 @@ router.post('/campaigns/:id/send', async (req, res) => {
   }
 });
 
+// ==================== RESUME CAMPAIGN ====================
+
+// POST /api/email/campaigns/:id/resume - Yarım kalan kampanyayı devam ettir
+router.post('/campaigns/:id/resume', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { EmailCampaign } = require('../models/EmailCampaign');
+    const { EmailTemplate } = require('../models/EmailTemplate');
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { EmailSend } = require('../models/EmailSend');
+    const { EmailList } = require('../models/EmailList');
+    
+    const campaignRepo = AppDataSource.getRepository(EmailCampaign);
+    const templateRepo = AppDataSource.getRepository(EmailTemplate);
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const sendRepo = AppDataSource.getRepository(EmailSend);
+    const listRepo = AppDataSource.getRepository(EmailList);
+    
+    const campaign = await campaignRepo.findOne({ where: { id: parseInt(req.params.id) } });
+    if (!campaign) {
+      return res.status(404).json({ error: 'Kampanya bulunamadı' });
+    }
+    
+    // Template'i al
+    const template = await templateRepo.findOne({ where: { id: campaign.templateId } });
+    if (!template) {
+      return res.status(404).json({ error: 'Template bulunamadı' });
+    }
+    
+    // Listelerdeki aboneleri al
+    const listIds = campaign.listIds.split(',').map(id => parseInt(id.trim()));
+    const allSubscribers = await subscriberRepo.find({
+      where: listIds.map(id => ({ listId: id, status: 'active' }))
+    });
+    
+    // Daha önce gönderilmiş olanları bul
+    const sentEmails = await sendRepo.find({
+      where: { campaignId: campaign.id }
+    });
+    const sentSubscriberIds = new Set(sentEmails.map(s => s.subscriberId));
+    
+    // Sadece gönderilmemiş olanları filtrele
+    const pendingSubscribers = allSubscribers.filter(s => !sentSubscriberIds.has(s.id));
+    
+    if (pendingSubscribers.length === 0) {
+      // Kampanyayı tamamla
+      campaign.status = 'sent';
+      campaign.completedAt = new Date();
+      await campaignRepo.save(campaign);
+      return res.json({ 
+        success: true, 
+        message: 'Tüm emailler zaten gönderilmiş!',
+        totalSent: sentEmails.length,
+        pending: 0
+      });
+    }
+    
+    logger.info(`📧 Kampanya devam ediyor: ${campaign.name} - ${pendingSubscribers.length} bekleyen email`);
+    
+    // Kampanyayı güncelle
+    campaign.status = 'sending';
+    await campaignRepo.save(campaign);
+    
+    const unsubscribeBaseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
+    const transport = getTransporter();
+    
+    let sentCount = 0;
+    let failedCount = 0;
+    const errors = [];
+    
+    for (const subscriber of pendingSubscribers) {
+      try {
+        // Rate limit kontrolü
+        const rateCheck = checkRateLimit();
+        if (!rateCheck.allowed) {
+          logger.warn(`⚠️ Rate limit - Bekleniyor: ${rateCheck.retryAfter}s`);
+          await new Promise(resolve => setTimeout(resolve, 60000));
+        }
+        
+        const unsubscribeUrl = `${unsubscribeBaseUrl}/api/email/unsubscribe/${subscriber.unsubscribeToken}`;
+        
+        // Confirmation token
+        if (!subscriber.confirmationToken) {
+          subscriber.confirmationToken = generateConfirmationToken();
+          subscriber.confirmationStatus = 'pending';
+          await subscriberRepo.save(subscriber);
+        }
+        
+        const baseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
+        const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}`;
+        
+        const subscriberList = await listRepo.findOne({ where: { id: subscriber.listId } });
+        
+        const fullName = subscriber.fullName || `${subscriber.firstName || ''} ${subscriber.lastName || ''}`.trim();
+        const variables = {
+          email: subscriber.email || '',
+          firstName: subscriber.firstName || '',
+          lastName: subscriber.lastName || '',
+          fullName: fullName || 'Değerli Müşterimiz',
+          name: fullName || 'Değerli Müşterimiz',
+          phone: subscriber.phone || '',
+          city: subscriber.city || subscriberList?.city || '',
+          stage: subscriber.stage || '',
+          eventDate: subscriber.eventDate || subscriberList?.eventDates || '',
+          eventTime: subscriber.eventTime || '',
+          unsubscribeUrl,
+          confirmUrl,
+          listCity: subscriberList?.city || '',
+          listCityDisplay: subscriberList?.cityDisplay || subscriberList?.city || '',
+          listEventDates: subscriberList?.eventDates || '',
+          listLocation: subscriberList?.location || '',
+          listName: subscriberList?.name || ''
+        };
+        
+        let htmlContent = replaceTemplateVariables(template.htmlContent, variables);
+        htmlContent = addUnsubscribeLink(htmlContent, unsubscribeUrl);
+        
+        const subject = campaign.subject 
+          ? replaceTemplateVariables(campaign.subject, variables)
+          : replaceTemplateVariables(template.subject, variables);
+        
+        const mailOptions = {
+          from: `"${campaign.fromName || 'Happy Smile Clinics'}" <${campaign.fromEmail || process.env.BULK_EMAIL_USER}>`,
+          to: subscriber.email,
+          subject,
+          html: htmlContent,
+          headers: {
+            'List-Unsubscribe': `<${unsubscribeUrl}>`,
+            'X-Campaign-ID': campaign.id.toString()
+          }
+        };
+        
+        if (campaign.replyTo) {
+          mailOptions.replyTo = campaign.replyTo;
+        }
+        
+        const info = await transport.sendMail(mailOptions);
+        
+        const send = sendRepo.create({
+          campaignId: campaign.id,
+          subscriberId: subscriber.id,
+          toEmail: subscriber.email,
+          status: 'sent',
+          messageId: info.messageId,
+          sentAt: new Date()
+        });
+        await sendRepo.save(send);
+        
+        updateRateLimit();
+        sentCount++;
+        
+        logger.info(`📧 Email gönderildi (resume): ${subscriber.email} (${sentCount}/${pendingSubscribers.length})`);
+        
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMITS.delayBetweenEmails));
+        
+      } catch (error) {
+        failedCount++;
+        errors.push({ email: subscriber.email, error: error.message });
+        logger.error(`❌ Email gönderim hatası: ${subscriber.email} - ${error.message}`);
+        
+        const send = sendRepo.create({
+          campaignId: campaign.id,
+          subscriberId: subscriber.id,
+          toEmail: subscriber.email,
+          status: 'failed',
+          errorMessage: error.message,
+          failedAt: new Date()
+        });
+        await sendRepo.save(send);
+      }
+    }
+    
+    // Kampanyayı güncelle
+    const totalSent = (campaign.sentCount || 0) + sentCount;
+    const totalFailed = (campaign.bouncedCount || 0) + failedCount;
+    
+    campaign.sentCount = totalSent;
+    campaign.bouncedCount = totalFailed;
+    
+    // Hala bekleyen var mı kontrol et
+    const remainingCount = allSubscribers.length - totalSent - totalFailed;
+    if (remainingCount <= 0) {
+      campaign.status = 'sent';
+      campaign.completedAt = new Date();
+    }
+    
+    if (errors.length > 0) {
+      const existingErrors = campaign.errorLogs ? JSON.parse(campaign.errorLogs) : [];
+      campaign.errorLogs = JSON.stringify([...existingErrors, ...errors].slice(0, 100));
+    }
+    await campaignRepo.save(campaign);
+    
+    logger.info(`✅ Kampanya devam edildi: ${campaign.name} - ${sentCount} gönderildi, ${failedCount} başarısız`);
+    
+    res.json({ 
+      success: true, 
+      message: `Devam edildi: ${sentCount} başarılı, ${failedCount} başarısız`,
+      totalSent: totalSent,
+      totalFailed: totalFailed,
+      remaining: Math.max(0, allSubscribers.length - totalSent - totalFailed)
+    });
+    
+  } catch (error) {
+    logger.error('Kampanya devam ettirme hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== UNSUBSCRIBE ====================
 
 // GET /api/email/unsubscribe/:token - Abonelikten çık
