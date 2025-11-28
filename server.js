@@ -180,13 +180,119 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.raw({ type: '*/*' }));
 
-// Ana sayfa route'u - API Status (static files'dan önce!)
+// Ana sayfa route'u - Karşılama sayfası
 app.get('/', (req, res) => {
-  res.json({
-    status: 'online',
-    message: 'Twilio Voice API Service',
-    version: '2.0.0'
-  });
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Happy Smile Clinics Services</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+          color: #e5e7eb;
+        }
+        .container {
+          text-align: center;
+          padding: 40px 24px;
+          max-width: 420px;
+        }
+        .logo {
+          width: 180px;
+          height: auto;
+          margin-bottom: 32px;
+          filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+        }
+        h1 {
+          font-size: 28px;
+          font-weight: 600;
+          color: #f9fafb;
+          margin-bottom: 8px;
+          letter-spacing: -0.5px;
+        }
+        .subtitle {
+          font-size: 14px;
+          color: #9ca3af;
+          text-transform: uppercase;
+          letter-spacing: 3px;
+          margin-bottom: 32px;
+        }
+        .divider {
+          width: 60px;
+          height: 3px;
+          background: linear-gradient(90deg, #22c55e, #2dd4bf);
+          margin: 0 auto 32px;
+          border-radius: 2px;
+        }
+        .status {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 20px;
+          background: rgba(34, 197, 94, 0.1);
+          border: 1px solid rgba(34, 197, 94, 0.3);
+          border-radius: 999px;
+          font-size: 13px;
+          color: #22c55e;
+        }
+        .status-dot {
+          width: 8px;
+          height: 8px;
+          background: #22c55e;
+          border-radius: 50%;
+          animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        .footer {
+          margin-top: 48px;
+          font-size: 12px;
+          color: #6b7280;
+        }
+        .footer a {
+          color: #9ca3af;
+          text-decoration: none;
+        }
+        .footer a:hover {
+          color: #e5e7eb;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <img 
+          src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" 
+          alt="Happy Smile Clinics" 
+          class="logo"
+        >
+        <h1>Happy Smile Clinics</h1>
+        <p class="subtitle">Services API</p>
+        <div class="divider"></div>
+        <div class="status">
+          <span class="status-dot"></span>
+          All systems operational
+        </div>
+        <p class="footer">
+          &copy; ${new Date().getFullYear()} Happy Smile Clinics<br>
+          <a href="https://happysmileclinics.com" target="_blank">happysmileclinics.com</a>
+        </p>
+      </div>
+    </body>
+    </html>
+  `);
 });
 
 // Daily email endpoint - Production için (API key ile korumalı)
