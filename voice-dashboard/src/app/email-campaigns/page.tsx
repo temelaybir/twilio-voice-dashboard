@@ -597,16 +597,19 @@ Başarısız: ${stats.failed}
       {/* Simple List Modal */}
       {listModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
-              {editingList ? 'Liste Düzenle' : 'Yeni Liste Oluştur'}
+              {editingList ? 'Liste Düzenle' : 'Yeni Etkinlik Listesi Oluştur'}
             </h2>
             <form onSubmit={(e) => {
               e.preventDefault()
               const formData = new FormData(e.currentTarget)
               handleSaveList({
                 name: formData.get('name') as string,
-                description: formData.get('description') as string
+                description: formData.get('description') as string,
+                city: formData.get('city') as string,
+                eventDates: formData.get('eventDates') as string,
+                location: formData.get('location') as string,
               })
             }}>
               <div className="space-y-4">
@@ -617,16 +620,66 @@ Başarısız: ${stats.failed}
                     defaultValue={editingList?.name || ''}
                     required
                     className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Örn: VIP Hastalar"
+                    placeholder="Örn: Bydgoszcz Kasım 2025"
                   />
                 </div>
+                
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <h3 className="text-sm font-semibold text-purple-800 mb-3">📅 Etkinlik Detayları</h3>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Şehir *</label>
+                      <input
+                        name="city"
+                        defaultValue={(editingList as any)?.city || ''}
+                        required
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="Örn: Bydgoszcz"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Etkinlik Tarihleri *</label>
+                      <input
+                        name="eventDates"
+                        defaultValue={(editingList as any)?.eventDates || ''}
+                        required
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="Örn: 30 listopada - 1 grudnia"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Konum/Adres *</label>
+                      <textarea
+                        name="location"
+                        defaultValue={(editingList as any)?.location || ''}
+                        required
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                        rows={2}
+                        placeholder="Örn: Hampton by Hilton, ul. Piłsudskiego 34, 10-577 Olsztyn"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 p-2 bg-white rounded border text-xs text-gray-600">
+                    <strong>Saat Dilimleri (Varsayılan):</strong>
+                    <div className="mt-1 flex gap-2 flex-wrap">
+                      <span className="px-2 py-1 bg-gray-100 rounded">09:00-12:30</span>
+                      <span className="px-2 py-1 bg-gray-100 rounded">12:30-15:00</span>
+                      <span className="px-2 py-1 bg-gray-100 rounded">15:00-17:30</span>
+                    </div>
+                  </div>
+                </div>
+                
                 <div>
-                  <label className="block text-sm font-medium mb-1">Açıklama</label>
+                  <label className="block text-sm font-medium mb-1">Açıklama (Opsiyonel)</label>
                   <textarea
                     name="description"
                     defaultValue={editingList?.description || ''}
                     className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                    rows={3}
+                    rows={2}
                     placeholder="Liste açıklaması..."
                   />
                 </div>

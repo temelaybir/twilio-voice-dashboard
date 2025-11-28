@@ -10,7 +10,10 @@ import {
   Pencil, 
   Trash2, 
   Users,
-  FolderOpen
+  FolderOpen,
+  MapPin,
+  Calendar,
+  Clock
 } from 'lucide-react'
 import type { EmailList } from '@/types/email'
 
@@ -95,14 +98,9 @@ export function ListManager({
                 key={list.id}
                 className="border rounded-lg p-4 hover:shadow-md transition-shadow bg-white"
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between mb-2">
                   <div>
                     <h3 className="font-semibold text-lg">{list.name}</h3>
-                    {list.description && (
-                      <p className="text-gray-500 text-sm mt-1 line-clamp-2">
-                        {list.description}
-                      </p>
-                    )}
                   </div>
                   {!list.isActive && (
                     <Badge variant="outline" className="text-gray-500">
@@ -111,7 +109,37 @@ export function ListManager({
                   )}
                 </div>
                 
-                <div className="flex items-center justify-between mt-4">
+                {/* Etkinlik Bilgileri */}
+                {(list.city || list.eventDates || list.location) && (
+                  <div className="my-3 p-3 bg-purple-50 rounded-lg border border-purple-100 space-y-1.5">
+                    {list.city && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <MapPin className="h-3.5 w-3.5 text-purple-600" />
+                        <span className="font-medium text-purple-800">{list.city}</span>
+                      </div>
+                    )}
+                    {list.eventDates && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar className="h-3.5 w-3.5 text-purple-600" />
+                        <span className="text-purple-700">{list.eventDates}</span>
+                      </div>
+                    )}
+                    {list.location && (
+                      <div className="flex items-start gap-2 text-xs text-purple-600">
+                        <Clock className="h-3 w-3 mt-0.5" />
+                        <span className="line-clamp-2">{list.location}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {list.description && (
+                  <p className="text-gray-500 text-sm line-clamp-2 mb-3">
+                    {list.description}
+                  </p>
+                )}
+                
+                <div className="flex items-center justify-between mt-3 pt-3 border-t">
                   <div className="flex items-center gap-2 text-gray-600">
                     <Users className="h-4 w-4" />
                     <span className="text-sm font-medium">{list.subscriberCount} abone</span>
@@ -145,10 +173,6 @@ export function ListManager({
                     </Button>
                   </div>
                 </div>
-                
-                <p className="text-xs text-gray-400 mt-3">
-                  Oluşturulma: {new Date(list.createdAt).toLocaleDateString('tr-TR')}
-                </p>
               </div>
             ))}
           </div>

@@ -372,20 +372,27 @@ router.post('/lists', async (req, res) => {
     const { EmailList } = require('../models/EmailList');
     const listRepo = AppDataSource.getRepository(EmailList);
     
-    const { name, description } = req.body;
+    const { name, description, city, eventDates, location, timeSlots } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'name zorunludur' });
     }
     
+    // Varsayılan saat dilimleri
+    const defaultTimeSlots = ['09:00-12:30', '12:30-15:00', '15:00-17:30'];
+    
     const list = listRepo.create({
       name,
-      description
+      description,
+      city: city || null,
+      eventDates: eventDates || null,
+      location: location || null,
+      timeSlots: JSON.stringify(timeSlots || defaultTimeSlots)
     });
     
     await listRepo.save(list);
     
-    logger.info(`✅ Yeni email listesi oluşturuldu: ${name}`);
+    logger.info(`✅ Yeni email listesi oluşturuldu: ${name} (${city || 'Şehir yok'})`);
     res.status(201).json({ success: true, data: list });
   } catch (error) {
     logger.error('Liste oluşturma hatası:', error);
@@ -410,10 +417,14 @@ router.put('/lists/:id', async (req, res) => {
       return res.status(404).json({ error: 'Liste bulunamadı' });
     }
     
-    const { name, description, isActive } = req.body;
+    const { name, description, city, eventDates, location, timeSlots, isActive } = req.body;
     
     if (name) list.name = name;
     if (description !== undefined) list.description = description;
+    if (city !== undefined) list.city = city;
+    if (eventDates !== undefined) list.eventDates = eventDates;
+    if (location !== undefined) list.location = location;
+    if (timeSlots !== undefined) list.timeSlots = JSON.stringify(timeSlots);
     if (isActive !== undefined) list.isActive = isActive;
     
     await listRepo.save(list);
@@ -1546,7 +1557,9 @@ router.get('/confirm/:token', async (req, res) => {
     }
     
     const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { EmailList } = require('../models/EmailList');
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const listRepo = AppDataSource.getRepository(EmailList);
     
     const subscriber = await subscriberRepo.findOne({ 
       where: { confirmationToken: req.params.token } 
@@ -1577,9 +1590,14 @@ router.get('/confirm/:token', async (req, res) => {
       `);
     }
     
+    // Liste bilgilerini al
+    const list = await listRepo.findOne({ where: { id: subscriber.listId } });
+    const timeSlots = list?.timeSlots ? JSON.parse(list.timeSlots) : ['09:00-12:30', '12:30-15:00', '15:00-17:30'];
+    
     // Zaten onaylanmış mı kontrol et
     const alreadyConfirmed = subscriber.confirmationStatus === 'confirmed';
     const alreadyCancelled = subscriber.confirmationStatus === 'cancelled';
+    const isReschedule = req.query.reschedule === 'true';
     
     res.send(`
       <!DOCTYPE html>
@@ -1613,6 +1631,16 @@ router.get('/confirm/:token', async (req, res) => {
           .cancelled { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; }
           .cancelled h3 { color: #ef4444; }
           .info { font-size: 12px; color: #9ca3af; margin-top: 20px; text-align: center; }
+          .time-slots { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+          .time-slot { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: rgba(15,23,42,0.9); border: 1px solid rgba(148,163,184,0.3); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+          .time-slot:hover { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
+          .time-slot input[type="radio"] { width: 18px; height: 18px; accent-color: #f59e0b; }
+          .time-slot label { flex: 1; cursor: pointer; font-size: 15px; color: #e5e7eb; }
+          .event-info { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+          .event-info-title { font-size: 12px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+          .event-info-text { font-size: 14px; color: #e5e7eb; }
+          .back-link { display: inline-block; margin-bottom: 20px; color: #9ca3af; text-decoration: none; font-size: 14px; }
+          .back-link:hover { color: #e5e7eb; }
         </style>
       </head>
       <body>
@@ -1629,6 +1657,36 @@ router.get('/confirm/:token', async (req, res) => {
               <h3>❌ Wizyta została anulowana</h3>
               <p>Ta wizyta została wcześniej anulowana. Skontaktuj się z nami, aby umówić nowy termin.</p>
             </div>
+          ` : isReschedule ? `
+            <a href="/api/email/confirm/${req.params.token}" class="back-link">← Powrót</a>
+            <h2>Zmiana terminu</h2>
+            <h1>Wybierz nową godzinę wizyty</h1>
+            
+            <div class="event-info">
+              <div class="event-info-title">📍 ${list?.city || subscriber.city || 'Lokalizacja'}</div>
+              <div class="event-info-text">${list?.eventDates || subscriber.eventDate || 'Dostępne terminy'}</div>
+              ${list?.location ? `<div class="event-info-text" style="margin-top: 8px; font-size: 12px; color: #9ca3af;">${list.location}</div>` : ''}
+            </div>
+            
+            <form id="rescheduleForm" method="POST" action="/api/email/confirm/${req.params.token}">
+              <input type="hidden" name="action" value="reschedule">
+              
+              <div class="label" style="margin-bottom: 12px;">Wybierz preferowaną godzinę:</div>
+              <div class="time-slots">
+                ${timeSlots.map((slot, index) => `
+                  <div class="time-slot">
+                    <input type="radio" name="newTimeSlot" id="slot${index}" value="${slot}" ${index === 0 ? 'checked' : ''}>
+                    <label for="slot${index}">${slot}</label>
+                  </div>
+                `).join('')}
+              </div>
+              
+              <textarea name="note" class="note-input" placeholder="Dodatkowe uwagi (opcjonalnie)..."></textarea>
+              
+              <div class="buttons">
+                <button type="submit" class="btn btn-confirm">✓ Potwierdź zmianę</button>
+              </div>
+            </form>
           ` : `
             <h2>Potwierdzenie wizyty</h2>
             <h1>Twoje spotkanie dentystyczne</h1>
@@ -1638,10 +1696,11 @@ router.get('/confirm/:token', async (req, res) => {
               <div class="value">${subscriber.fullName || subscriber.firstName || 'Pacjent'}</div>
               
               <div class="label">Data i godzina</div>
-              <div class="value">${subscriber.eventDate || 'Brak daty'} ${subscriber.eventTime ? 'o ' + subscriber.eventTime : ''}</div>
+              <div class="value">${list?.eventDates || subscriber.eventDate || 'Brak daty'} ${subscriber.eventTime ? 'o ' + subscriber.eventTime : ''}</div>
               
               <div class="label">Miejsce</div>
-              <div class="value">${subscriber.city || 'Happy Smile Clinics'}</div>
+              <div class="value">${list?.city || subscriber.city || 'Happy Smile Clinics'}</div>
+              ${list?.location ? `<div class="value" style="font-size: 13px; color: #9ca3af;">${list.location}</div>` : ''}
             </div>
             
             <form id="confirmForm" method="POST" action="/api/email/confirm/${req.params.token}">
@@ -1651,7 +1710,7 @@ router.get('/confirm/:token', async (req, res) => {
                 <button type="submit" name="action" value="confirm" class="btn btn-confirm">✓ Potwierdzam</button>
               </div>
               <div class="buttons" style="margin-top: 8px;">
-                <button type="submit" name="action" value="reschedule" class="btn btn-reschedule">📅 Zmień termin</button>
+                <a href="/api/email/confirm/${req.params.token}?reschedule=true" class="btn btn-reschedule" style="text-decoration: none; text-align: center;">📅 Zmień termin</a>
                 <button type="submit" name="action" value="cancel" class="btn btn-cancel">✗ Anuluję</button>
               </div>
             </form>
@@ -1679,7 +1738,9 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
     }
     
     const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { EmailList } = require('../models/EmailList');
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const listRepo = AppDataSource.getRepository(EmailList);
     
     const subscriber = await subscriberRepo.findOne({ 
       where: { confirmationToken: req.params.token } 
@@ -1689,7 +1750,7 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
       return res.redirect(`/api/email/confirm/${req.params.token}`);
     }
     
-    const { action, note } = req.body;
+    const { action, note, newTimeSlot } = req.body;
     
     // Durumu güncelle
     if (action === 'confirm') {
@@ -1698,20 +1759,32 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
       subscriber.confirmationStatus = 'cancelled';
     } else if (action === 'reschedule') {
       subscriber.confirmationStatus = 'rescheduled';
+      // Yeni saat seçimini kaydet
+      if (newTimeSlot) {
+        subscriber.eventTime = newTimeSlot;
+        // Not'a da ekle
+        const rescheduleNote = `Yeni saat tercihi: ${newTimeSlot}${note ? '. ' + note : ''}`;
+        subscriber.confirmationNote = rescheduleNote;
+      }
     }
     
     subscriber.confirmedAt = new Date();
-    subscriber.confirmationNote = note || null;
+    if (action !== 'reschedule' || !newTimeSlot) {
+      subscriber.confirmationNote = note || null;
+    }
     
     await subscriberRepo.save(subscriber);
     
-    logger.info(`📅 Randevu ${action}: ${subscriber.fullName || subscriber.email} - ${subscriber.eventDate}`);
+    // Liste bilgilerini al
+    const list = await listRepo.findOne({ where: { id: subscriber.listId } });
+    
+    logger.info(`📅 Randevu ${action}: ${subscriber.fullName || subscriber.email} - ${subscriber.eventDate} ${newTimeSlot ? '-> ' + newTimeSlot : ''}`);
     
     // Sonuç sayfası
     const statusMessages = {
       confirm: { icon: '✅', title: 'Wizyta potwierdzona!', text: 'Dziękujemy za potwierdzenie. Do zobaczenia!' },
       cancel: { icon: '❌', title: 'Wizyta anulowana', text: 'Twoja wizyta została anulowana. Skontaktuj się z nami, jeśli chcesz umówić nowy termin.' },
-      reschedule: { icon: '📅', title: 'Prośba o zmianę terminu', text: 'Otrzymaliśmy Twoją prośbę o zmianę terminu. Skontaktujemy się z Tobą wkrótce.' }
+      reschedule: { icon: '📅', title: 'Zmiana terminu zapisana!', text: `Nowa godzina wizyty: ${newTimeSlot || 'Oczekuje na potwierdzenie'}. Skontaktujemy się z Tobą wkrótce.` }
     };
     
     const msg = statusMessages[action] || statusMessages.confirm;

@@ -17,6 +17,10 @@ export interface EmailList {
   id: number
   name: string
   description?: string
+  city?: string
+  eventDates?: string
+  location?: string
+  timeSlots?: string // JSON string
   subscriberCount: number
   isActive: boolean
   createdAt: string
@@ -152,6 +156,10 @@ export interface TemplateFormData {
 export interface ListFormData {
   name: string
   description?: string
+  city?: string
+  eventDates?: string
+  location?: string
+  timeSlots?: string[]
 }
 
 export interface SubscriberFormData {

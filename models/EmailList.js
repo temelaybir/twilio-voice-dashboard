@@ -1,6 +1,6 @@
 const { EntitySchema } = require('typeorm');
 
-// EmailList modeli - Abone listeleri
+// EmailList modeli - Abone listeleri (Etkinlik bazlı)
 const EmailList = new EntitySchema({
   name: 'EmailList',
   tableName: 'email_lists',
@@ -16,6 +16,28 @@ const EmailList = new EntitySchema({
       nullable: false
     },
     description: {
+      type: 'text',
+      nullable: true
+    },
+    // Etkinlik şehri (zorunlu)
+    city: {
+      type: 'varchar',
+      length: 255,
+      nullable: true
+    },
+    // Etkinlik tarihleri (örn: "30 listopada - 1 grudia")
+    eventDates: {
+      type: 'varchar',
+      length: 255,
+      nullable: true
+    },
+    // Etkinlik konumu/adresi
+    location: {
+      type: 'text',
+      nullable: true
+    },
+    // Saat seçenekleri (JSON array: ["09:00-12:30", "12:30-15:00", "15:00-17:30"])
+    timeSlots: {
       type: 'text',
       nullable: true
     },
@@ -43,6 +65,3 @@ const EmailList = new EntitySchema({
 module.exports = {
   EmailList
 };
-
-
-
