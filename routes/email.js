@@ -657,6 +657,52 @@ router.post('/subscribers/bulk', async (req, res) => {
   }
 });
 
+// PUT /api/email/subscribers/:id - Abone güncelle
+router.put('/subscribers/:id', async (req, res) => {
+  try {
+    const subscriberId = parseInt(req.params.id);
+    if (isNaN(subscriberId) || subscriberId <= 0) {
+      return res.status(400).json({ error: 'Geçersiz abone ID' });
+    }
+    
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    
+    const subscriber = await subscriberRepo.findOne({ where: { id: subscriberId } });
+    
+    if (!subscriber) {
+      return res.status(404).json({ error: 'Abone bulunamadı' });
+    }
+    
+    const { fullName, firstName, lastName, email, phone, city, stage, eventDate, eventTime, status } = req.body;
+    
+    // Alanları güncelle
+    if (fullName !== undefined) subscriber.fullName = fullName || null;
+    if (firstName !== undefined) subscriber.firstName = firstName || null;
+    if (lastName !== undefined) subscriber.lastName = lastName || null;
+    if (email !== undefined) subscriber.email = email || null;
+    if (phone !== undefined) subscriber.phone = phone || null;
+    if (city !== undefined) subscriber.city = city || null;
+    if (stage !== undefined) subscriber.stage = stage || null;
+    if (eventDate !== undefined) subscriber.eventDate = eventDate || null;
+    if (eventTime !== undefined) subscriber.eventTime = eventTime || null;
+    if (status !== undefined) subscriber.status = status;
+    
+    await subscriberRepo.save(subscriber);
+    
+    logger.info(`✅ Abone güncellendi: ID ${subscriberId}`);
+    res.json({ success: true, data: subscriber });
+  } catch (error) {
+    logger.error('Abone güncelleme hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // DELETE /api/email/subscribers/:id - Abone sil
 router.delete('/subscribers/:id', async (req, res) => {
   try {

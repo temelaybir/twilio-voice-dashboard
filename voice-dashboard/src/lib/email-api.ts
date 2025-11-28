@@ -226,6 +226,21 @@ export async function bulkCreateSubscribers(
   return data
 }
 
+export async function updateSubscriber(id: number, subscriber: Partial<SubscriberFormData>): Promise<{ success: boolean; data: EmailSubscriber }> {
+  const response = await fetch(`${API_BASE_URL}/email/subscribers/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(subscriber)
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
 export async function deleteSubscriber(id: number): Promise<{ success: boolean; message: string }> {
   const response = await fetch(`${API_BASE_URL}/email/subscribers/${id}`, {
     method: 'DELETE'

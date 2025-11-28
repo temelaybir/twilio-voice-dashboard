@@ -44,6 +44,7 @@ import {
   deleteList,
   getSubscribers,
   createSubscriber,
+  updateSubscriber,
   bulkCreateSubscribers,
   deleteSubscriber,
   bulkDeleteSubscribers,
@@ -255,6 +256,16 @@ export default function EmailCampaignsPage() {
       setMessage('✅ Abone silindi')
       loadSubscribers()
       loadData()
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    }
+  }
+
+  const handleUpdateSubscriber = async (id: number, data: any) => {
+    try {
+      await updateSubscriber(id, data)
+      setMessage('✅ Abone güncellendi')
+      loadSubscribers()
     } catch (error: any) {
       setMessage(`❌ Hata: ${error.message}`)
     }
@@ -545,6 +556,7 @@ Başarısız: ${stats.failed}
               onAddSubscriber={handleAddSubscriber}
               onBulkImport={() => setImportModalOpen(true)}
               onDelete={handleDeleteSubscriber}
+              onUpdate={handleUpdateSubscriber}
               onBulkDelete={handleBulkDeleteSubscribers}
               onDeleteAllInList={handleDeleteAllInList}
               onPageChange={setSubscriberPage}
@@ -716,7 +728,8 @@ Başarısız: ${stats.failed}
                     <label className="block text-sm font-medium mb-1">Etkinlik Tarihi</label>
                     <input
                       name="eventDate"
-                      type="date"
+                      type="text"
+                      placeholder="2025-12-15 veya 15 Aralık"
                       className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                   </div>
@@ -724,7 +737,8 @@ Başarısız: ${stats.failed}
                     <label className="block text-sm font-medium mb-1">Etkinlik Saati</label>
                     <input
                       name="eventTime"
-                      type="time"
+                      type="text"
+                      placeholder="14:00 veya 14:00-15:00"
                       className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                   </div>
