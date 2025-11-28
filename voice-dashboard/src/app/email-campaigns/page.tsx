@@ -349,6 +349,28 @@ export default function EmailCampaignsPage() {
     }
   }
 
+  const handlePauseCampaign = async (campaign: EmailCampaign) => {
+    try {
+      const { pauseCampaign } = await import('@/lib/email-api')
+      await pauseCampaign(campaign.id)
+      setMessage(`⏸️ "${campaign.name}" kampanyası duraklatıldı`)
+      loadData()
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    }
+  }
+
+  const handleResumeCampaign = async (campaign: EmailCampaign) => {
+    try {
+      const { resumeCampaign } = await import('@/lib/email-api')
+      const result = await resumeCampaign(campaign.id)
+      setMessage(`▶️ "${campaign.name}" devam ediyor - ${result.totalSent} gönderildi, ${result.remaining} kaldı`)
+      loadData()
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    }
+  }
+
   const handleViewCampaignStats = async (campaign: EmailCampaign) => {
     try {
       const result = await getCampaignStats(campaign.id)
@@ -516,6 +538,8 @@ Başarısız: ${stats.failed}
               onDelete={handleDeleteCampaign}
               onSend={handleSendCampaign}
               onViewStats={handleViewCampaignStats}
+              onPause={handlePauseCampaign}
+              onResume={handleResumeCampaign}
             />
           </TabsContent>
 

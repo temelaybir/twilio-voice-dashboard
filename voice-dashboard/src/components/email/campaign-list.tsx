@@ -29,6 +29,8 @@ interface CampaignListProps {
   onDelete: (id: number) => void
   onSend: (campaign: EmailCampaign) => void
   onViewStats: (campaign: EmailCampaign) => void
+  onPause?: (campaign: EmailCampaign) => void
+  onResume?: (campaign: EmailCampaign) => void
 }
 
 export function CampaignList({
@@ -38,7 +40,9 @@ export function CampaignList({
   onCreate,
   onDelete,
   onSend,
-  onViewStats
+  onViewStats,
+  onPause,
+  onResume
 }: CampaignListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
@@ -231,7 +235,29 @@ export function CampaignList({
                         Gönder
                       </Button>
                     )}
-                    {(campaign.status === 'sent' || campaign.status === 'sending') && (
+                    {campaign.status === 'sending' && onPause && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onPause(campaign)}
+                        className="gap-1 border-orange-500 text-orange-600 hover:bg-orange-50"
+                      >
+                        <Pause className="h-4 w-4" />
+                        Duraklat
+                      </Button>
+                    )}
+                    {(campaign.status === 'paused' || campaign.status === 'sending') && onResume && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => onResume(campaign)}
+                        className="gap-1 bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Play className="h-4 w-4" />
+                        Devam Et
+                      </Button>
+                    )}
+                    {(campaign.status === 'sent' || campaign.status === 'sending' || campaign.status === 'paused') && (
                       <Button
                         variant="outline"
                         size="sm"

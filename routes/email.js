@@ -1503,6 +1503,44 @@ router.post('/campaigns/:id/send', async (req, res) => {
   }
 });
 
+// ==================== PAUSE CAMPAIGN ====================
+
+// POST /api/email/campaigns/:id/pause - Kampanyayı duraklat
+router.post('/campaigns/:id/pause', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { EmailCampaign } = require('../models/EmailCampaign');
+    const campaignRepo = AppDataSource.getRepository(EmailCampaign);
+    
+    const campaign = await campaignRepo.findOne({ where: { id: parseInt(req.params.id) } });
+    if (!campaign) {
+      return res.status(404).json({ error: 'Kampanya bulunamadı' });
+    }
+    
+    if (campaign.status !== 'sending') {
+      return res.status(400).json({ error: 'Sadece gönderiliyor durumundaki kampanyalar duraklatılabilir' });
+    }
+    
+    campaign.status = 'paused';
+    await campaignRepo.save(campaign);
+    
+    logger.info(`⏸️ Kampanya duraklatıldı: ${campaign.name}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Kampanya duraklatıldı'
+    });
+    
+  } catch (error) {
+    logger.error('Kampanya duraklatma hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== RESUME CAMPAIGN ====================
 
 // POST /api/email/campaigns/:id/resume - Yarım kalan kampanyayı devam ettir

@@ -417,6 +417,32 @@ export async function sendCampaign(id: number): Promise<{ success: boolean; mess
   return data
 }
 
+export async function pauseCampaign(id: number): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/email/campaigns/${id}/pause`, {
+    method: 'POST'
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
+export async function resumeCampaign(id: number): Promise<{ success: boolean; message: string; totalSent: number; remaining: number }> {
+  const response = await fetch(`${API_BASE_URL}/email/campaigns/${id}/resume`, {
+    method: 'POST'
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
 export async function getCampaignStats(id: number): Promise<{ success: boolean; data: CampaignStats }> {
   const response = await fetch(`${API_BASE_URL}/email/campaigns/${id}/stats`)
   const data = await response.json()
