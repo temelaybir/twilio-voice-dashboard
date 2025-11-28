@@ -83,6 +83,28 @@ const EmailSubscriber = new EntitySchema({
       length: 64,
       nullable: true
     },
+    // Randevu onay token'ı
+    confirmationToken: {
+      type: 'varchar',
+      length: 64,
+      nullable: true
+    },
+    // Onay durumu: pending, confirmed, cancelled, rescheduled
+    confirmationStatus: {
+      type: 'varchar',
+      length: 50,
+      default: 'pending'
+    },
+    // Onay tarihi
+    confirmedAt: {
+      type: 'datetime',
+      nullable: true
+    },
+    // Kullanıcı notu (değişiklik talebi vs)
+    confirmationNote: {
+      type: 'text',
+      nullable: true
+    },
     // Email gönderim sayısı
     emailsSent: {
       type: 'int',
@@ -128,6 +150,14 @@ const EmailSubscriber = new EntitySchema({
     {
       name: 'idx_subscriber_phone',
       columns: ['phone']
+    },
+    {
+      name: 'idx_subscriber_confirmation_token',
+      columns: ['confirmationToken']
+    },
+    {
+      name: 'idx_subscriber_confirmation_status',
+      columns: ['confirmationStatus']
     }
   ]
 });

@@ -445,3 +445,28 @@ export async function sendTestEmail(
   return data
 }
 
+// ==================== CONFIRMATIONS ====================
+
+export interface ConfirmationStats {
+  total: number
+  pending: number
+  confirmed: number
+  cancelled: number
+  rescheduled: number
+}
+
+export async function getConfirmations(): Promise<{
+  success: boolean
+  data: EmailSubscriber[]
+  stats: ConfirmationStats
+}> {
+  const response = await fetch(`${API_BASE_URL}/email/confirmations`)
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+

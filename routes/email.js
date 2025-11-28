@@ -130,6 +130,11 @@ function generateUnsubscribeToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// Helper: Confirmation token oluştur
+function generateConfirmationToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
 // Helper: Template değişkenlerini değiştir
 function replaceTemplateVariables(content, variables) {
   let result = content;
@@ -1284,6 +1289,17 @@ router.post('/campaigns/:id/send', async (req, res) => {
         const unsubscribeUrl = `${unsubscribeBaseUrl}/api/email/unsubscribe/${subscriber.unsubscribeToken}`;
         
         // Template değişkenlerini hazırla
+        // Confirmation token oluştur ve kaydet
+        if (!subscriber.confirmationToken) {
+          subscriber.confirmationToken = generateConfirmationToken();
+          subscriber.confirmationStatus = 'pending';
+          await subscriberRepo.save(subscriber);
+        }
+        
+        // Confirm URL oluştur
+        const baseUrl = process.env.API_BASE_URL || 'https://twilio-voice-dashboard.vercel.app';
+        const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}`;
+        
         // Tüm değişkenleri hazırla
         const fullName = subscriber.fullName || `${subscriber.firstName || ''} ${subscriber.lastName || ''}`.trim();
         const variables = {
@@ -1297,7 +1313,8 @@ router.post('/campaigns/:id/send', async (req, res) => {
           stage: subscriber.stage || '',
           eventDate: subscriber.eventDate || '',
           eventTime: subscriber.eventTime || '',
-          unsubscribeUrl
+          unsubscribeUrl,
+          confirmUrl
         };
         
         // Custom fields varsa ekle
@@ -1469,6 +1486,258 @@ router.get('/unsubscribe/:token', async (req, res) => {
   } catch (error) {
     logger.error('Abonelik iptal hatası:', error);
     res.status(500).send('Bir hata oluştu');
+  }
+});
+
+// ==================== RANDEVU ONAY SİSTEMİ ====================
+
+// GET /api/email/confirm/:token - Randevu onay sayfası
+router.get('/confirm/:token', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).send('Servis geçici olarak kullanılamıyor');
+    }
+    
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    
+    const subscriber = await subscriberRepo.findOne({ 
+      where: { confirmationToken: req.params.token } 
+    });
+    
+    if (!subscriber) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html lang="pl">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Link wygasł</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
+            h2 { color: #f59e0b; margin-bottom: 16px; }
+            p { color: #9ca3af; line-height: 1.6; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>⚠️ Link wygasł lub jest nieprawidłowy</h2>
+            <p>Ten link potwierdzenia wizyty jest nieprawidłowy lub już został użyty. Jeśli potrzebujesz pomocy, skontaktuj się z nami.</p>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+    
+    // Zaten onaylanmış mı kontrol et
+    const alreadyConfirmed = subscriber.confirmationStatus === 'confirmed';
+    const alreadyCancelled = subscriber.confirmationStatus === 'cancelled';
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="pl">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Potwierdzenie wizyty - Happy Smile Clinics</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
+          .card { background: #020617; border-radius: 16px; padding: 32px; max-width: 500px; width: 100%; border: 1px solid rgba(148,163,184,0.25); }
+          .logo { height: 40px; margin-bottom: 24px; }
+          h1 { font-size: 22px; color: #f9fafb; margin: 0 0 8px; }
+          h2 { font-size: 13px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.15em; margin: 0 0 20px; font-weight: 500; }
+          .details { background: rgba(15,23,42,0.9); border: 1px solid rgba(148,163,184,0.3); border-radius: 12px; padding: 16px; margin: 20px 0; }
+          .label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+          .value { font-size: 15px; color: #e5e7eb; margin-bottom: 12px; }
+          .value:last-child { margin-bottom: 0; }
+          .buttons { display: flex; gap: 12px; margin-top: 24px; }
+          .btn { flex: 1; padding: 14px 20px; border: none; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: all 0.2s; }
+          .btn-confirm { background: linear-gradient(135deg, #22c55e, #2dd4bf); color: #020617; }
+          .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(34,197,94,0.3); }
+          .btn-cancel { background: transparent; border: 1px solid #ef4444; color: #ef4444; }
+          .btn-cancel:hover { background: rgba(239,68,68,0.1); }
+          .btn-reschedule { background: transparent; border: 1px solid #f59e0b; color: #f59e0b; }
+          .btn-reschedule:hover { background: rgba(245,158,11,0.1); }
+          .note-input { width: 100%; padding: 12px; border: 1px solid rgba(148,163,184,0.3); border-radius: 8px; background: rgba(15,23,42,0.9); color: #e5e7eb; font-size: 14px; margin-top: 16px; box-sizing: border-box; resize: vertical; min-height: 80px; }
+          .note-input::placeholder { color: #6b7280; }
+          .success { background: rgba(34,197,94,0.1); border: 1px solid #22c55e; border-radius: 12px; padding: 20px; text-align: center; }
+          .success h3 { color: #22c55e; margin: 0 0 8px; }
+          .cancelled { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; }
+          .cancelled h3 { color: #ef4444; }
+          .info { font-size: 12px; color: #9ca3af; margin-top: 20px; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
+          
+          ${alreadyConfirmed ? `
+            <div class="success">
+              <h3>✅ Wizyta już potwierdzona</h3>
+              <p>Dziękujemy! Twoja wizyta została już wcześniej potwierdzona.</p>
+            </div>
+          ` : alreadyCancelled ? `
+            <div class="success cancelled">
+              <h3>❌ Wizyta została anulowana</h3>
+              <p>Ta wizyta została wcześniej anulowana. Skontaktuj się z nami, aby umówić nowy termin.</p>
+            </div>
+          ` : `
+            <h2>Potwierdzenie wizyty</h2>
+            <h1>Twoje spotkanie dentystyczne</h1>
+            
+            <div class="details">
+              <div class="label">Imię</div>
+              <div class="value">${subscriber.fullName || subscriber.firstName || 'Pacjent'}</div>
+              
+              <div class="label">Data i godzina</div>
+              <div class="value">${subscriber.eventDate || 'Brak daty'} ${subscriber.eventTime ? 'o ' + subscriber.eventTime : ''}</div>
+              
+              <div class="label">Miejsce</div>
+              <div class="value">${subscriber.city || 'Happy Smile Clinics'}</div>
+            </div>
+            
+            <form id="confirmForm" method="POST" action="/api/email/confirm/${req.params.token}">
+              <textarea name="note" class="note-input" placeholder="Dodatkowe uwagi lub pytania (opcjonalnie)..."></textarea>
+              
+              <div class="buttons">
+                <button type="submit" name="action" value="confirm" class="btn btn-confirm">✓ Potwierdzam</button>
+              </div>
+              <div class="buttons" style="margin-top: 8px;">
+                <button type="submit" name="action" value="reschedule" class="btn btn-reschedule">📅 Zmień termin</button>
+                <button type="submit" name="action" value="cancel" class="btn btn-cancel">✗ Anuluję</button>
+              </div>
+            </form>
+          `}
+          
+          <p class="info">
+            Masz pytania? Odpowiedz na e-mail lub napisz do nas na WhatsApp.
+          </p>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    logger.error('Randevu onay sayfası hatası:', error);
+    res.status(500).send('Bir hata oluştu');
+  }
+});
+
+// POST /api/email/confirm/:token - Randevu onay işlemi
+router.post('/confirm/:token', express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).send('Servis geçici olarak kullanılamıyor');
+    }
+    
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    
+    const subscriber = await subscriberRepo.findOne({ 
+      where: { confirmationToken: req.params.token } 
+    });
+    
+    if (!subscriber) {
+      return res.redirect(`/api/email/confirm/${req.params.token}`);
+    }
+    
+    const { action, note } = req.body;
+    
+    // Durumu güncelle
+    if (action === 'confirm') {
+      subscriber.confirmationStatus = 'confirmed';
+    } else if (action === 'cancel') {
+      subscriber.confirmationStatus = 'cancelled';
+    } else if (action === 'reschedule') {
+      subscriber.confirmationStatus = 'rescheduled';
+    }
+    
+    subscriber.confirmedAt = new Date();
+    subscriber.confirmationNote = note || null;
+    
+    await subscriberRepo.save(subscriber);
+    
+    logger.info(`📅 Randevu ${action}: ${subscriber.fullName || subscriber.email} - ${subscriber.eventDate}`);
+    
+    // Sonuç sayfası
+    const statusMessages = {
+      confirm: { icon: '✅', title: 'Wizyta potwierdzona!', text: 'Dziękujemy za potwierdzenie. Do zobaczenia!' },
+      cancel: { icon: '❌', title: 'Wizyta anulowana', text: 'Twoja wizyta została anulowana. Skontaktuj się z nami, jeśli chcesz umówić nowy termin.' },
+      reschedule: { icon: '📅', title: 'Prośba o zmianę terminu', text: 'Otrzymaliśmy Twoją prośbę o zmianę terminu. Skontaktujemy się z Tobą wkrótce.' }
+    };
+    
+    const msg = statusMessages[action] || statusMessages.confirm;
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="pl">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${msg.title} - Happy Smile Clinics</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
+          .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
+          .logo { height: 40px; margin-bottom: 24px; }
+          .icon { font-size: 48px; margin-bottom: 16px; }
+          h2 { color: ${action === 'cancel' ? '#ef4444' : action === 'reschedule' ? '#f59e0b' : '#22c55e'}; margin-bottom: 16px; }
+          p { color: #9ca3af; line-height: 1.6; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
+          <div class="icon">${msg.icon}</div>
+          <h2>${msg.title}</h2>
+          <p>${msg.text}</p>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    logger.error('Randevu onay işlemi hatası:', error);
+    res.status(500).send('Bir hata oluştu');
+  }
+});
+
+// GET /api/email/confirmations - Dashboard için tüm onay durumları
+router.get('/confirmations', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    
+    // Son 30 gündeki randevuları getir
+    const subscribers = await subscriberRepo
+      .createQueryBuilder('s')
+      .where('s.confirmationToken IS NOT NULL')
+      .orderBy('s.eventDate', 'ASC')
+      .addOrderBy('s.eventTime', 'ASC')
+      .getMany();
+    
+    // İstatistikler
+    const stats = {
+      total: subscribers.length,
+      pending: subscribers.filter(s => s.confirmationStatus === 'pending').length,
+      confirmed: subscribers.filter(s => s.confirmationStatus === 'confirmed').length,
+      cancelled: subscribers.filter(s => s.confirmationStatus === 'cancelled').length,
+      rescheduled: subscribers.filter(s => s.confirmationStatus === 'rescheduled').length
+    };
+    
+    res.json({
+      success: true,
+      data: subscribers,
+      stats
+    });
+  } catch (error) {
+    logger.error('Onay listesi hatası:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -38,6 +38,11 @@ export interface EmailSubscriber {
   listId: number
   status: 'active' | 'unsubscribed' | 'bounced' | 'complained'
   unsubscribeToken?: string
+  // Randevu onay alanları
+  confirmationToken?: string
+  confirmationStatus?: 'pending' | 'confirmed' | 'cancelled' | 'rescheduled'
+  confirmedAt?: string
+  confirmationNote?: string
   emailsSent: number
   emailsOpened: number
   lastEmailAt?: string

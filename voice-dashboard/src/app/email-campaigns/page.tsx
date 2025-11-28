@@ -16,7 +16,8 @@ import {
   Phone,
   LogOut,
   Settings,
-  TestTube
+  TestTube,
+  CalendarCheck
 } from 'lucide-react'
 
 // Email components
@@ -28,6 +29,7 @@ import { CampaignList } from '@/components/email/campaign-list'
 import { TemplateEditorModal } from '@/components/email/template-editor-modal'
 import { CampaignEditorModal } from '@/components/email/campaign-editor-modal'
 import { SubscriberImportModal } from '@/components/email/subscriber-import-modal'
+import { AppointmentConfirmations } from '@/components/email/appointment-confirmations'
 
 // API functions
 import {
@@ -467,7 +469,7 @@ Başarısız: ${stats.failed}
 
         {/* Main Content */}
         <Tabs defaultValue="campaigns" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-3xl">
             <TabsTrigger value="campaigns" className="flex items-center gap-2">
               <Send className="h-4 w-4" />
               Kampanyalar
@@ -483,6 +485,10 @@ Başarısız: ${stats.failed}
             <TabsTrigger value="subscribers" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Aboneler
+            </TabsTrigger>
+            <TabsTrigger value="confirmations" className="flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4" />
+              Onaylar
             </TabsTrigger>
           </TabsList>
 
@@ -540,6 +546,11 @@ Başarısız: ${stats.failed}
               onDeleteAllInList={handleDeleteAllInList}
               onPageChange={setSubscriberPage}
             />
+          </TabsContent>
+
+          {/* Confirmations Tab */}
+          <TabsContent value="confirmations">
+            <AppointmentConfirmations onRefresh={loadData} />
           </TabsContent>
         </Tabs>
       </div>
