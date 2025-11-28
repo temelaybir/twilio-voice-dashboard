@@ -1605,10 +1605,18 @@ router.get('/confirm/:token', async (req, res) => {
     const list = await listRepo.findOne({ where: { id: subscriber.listId } });
     const timeSlots = list?.timeSlots ? JSON.parse(list.timeSlots) : ['09:00-12:30', '12:30-15:00', '15:00-17:30'];
     
-    // Zaten onaylanmış mı kontrol et
-    const alreadyConfirmed = subscriber.confirmationStatus === 'confirmed';
-    const alreadyCancelled = subscriber.confirmationStatus === 'cancelled';
+    // Durum kontrolleri
+    const status = subscriber.confirmationStatus || 'pending';
     const isReschedule = req.query.reschedule === 'true';
+    
+    // Durum badge'leri
+    const statusBadges = {
+      pending: { icon: '⏳', text: 'Oczekuje na potwierdzenie', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+      confirmed: { icon: '✅', text: 'Potwierdzona', color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+      cancelled: { icon: '❌', text: 'Anulowana', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+      rescheduled: { icon: '📅', text: 'Zmiana terminu', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' }
+    };
+    const currentStatus = statusBadges[status] || statusBadges.pending;
     
     res.send(`
       <!DOCTYPE html>
@@ -1616,67 +1624,68 @@ router.get('/confirm/:token', async (req, res) => {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Potwierdzenie wizyty - Happy Smile Clinics</title>
+        <title>Moja wizyta - Happy Smile Clinics</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
-          .card { background: #020617; border-radius: 16px; padding: 32px; max-width: 500px; width: 100%; border: 1px solid rgba(148,163,184,0.25); }
-          .logo { height: 40px; margin-bottom: 24px; }
+          .card { background: #020617; border-radius: 16px; padding: 32px; max-width: 520px; width: 100%; border: 1px solid rgba(148,163,184,0.25); }
+          .logo { height: 40px; margin-bottom: 16px; }
           h1 { font-size: 22px; color: #f9fafb; margin: 0 0 8px; }
           h2 { font-size: 13px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.15em; margin: 0 0 20px; font-weight: 500; }
+          .status-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; margin-bottom: 20px; }
           .details { background: rgba(15,23,42,0.9); border: 1px solid rgba(148,163,184,0.3); border-radius: 12px; padding: 16px; margin: 20px 0; }
-          .label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
-          .value { font-size: 15px; color: #e5e7eb; margin-bottom: 12px; }
-          .value:last-child { margin-bottom: 0; }
-          .buttons { display: flex; gap: 12px; margin-top: 24px; }
-          .btn { flex: 1; padding: 14px 20px; border: none; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: all 0.2s; }
+          .detail-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid rgba(148,163,184,0.1); }
+          .detail-row:last-child { border-bottom: none; }
+          .label { font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; }
+          .value { font-size: 15px; color: #e5e7eb; text-align: right; }
+          .buttons { display: flex; gap: 12px; margin-top: 20px; }
+          .btn { flex: 1; padding: 14px 20px; border: none; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: all 0.2s; text-decoration: none; text-align: center; }
           .btn-confirm { background: linear-gradient(135deg, #22c55e, #2dd4bf); color: #020617; }
           .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(34,197,94,0.3); }
           .btn-cancel { background: transparent; border: 1px solid #ef4444; color: #ef4444; }
           .btn-cancel:hover { background: rgba(239,68,68,0.1); }
           .btn-reschedule { background: transparent; border: 1px solid #f59e0b; color: #f59e0b; }
           .btn-reschedule:hover { background: rgba(245,158,11,0.1); }
-          .note-input { width: 100%; padding: 12px; border: 1px solid rgba(148,163,184,0.3); border-radius: 8px; background: rgba(15,23,42,0.9); color: #e5e7eb; font-size: 14px; margin-top: 16px; box-sizing: border-box; resize: vertical; min-height: 80px; }
+          .btn-secondary { background: rgba(148,163,184,0.2); border: 1px solid rgba(148,163,184,0.3); color: #e5e7eb; }
+          .btn-secondary:hover { background: rgba(148,163,184,0.3); }
+          .note-input { width: 100%; padding: 12px; border: 1px solid rgba(148,163,184,0.3); border-radius: 8px; background: rgba(15,23,42,0.9); color: #e5e7eb; font-size: 14px; margin-top: 16px; box-sizing: border-box; resize: vertical; min-height: 60px; }
           .note-input::placeholder { color: #6b7280; }
-          .success { background: rgba(34,197,94,0.1); border: 1px solid #22c55e; border-radius: 12px; padding: 20px; text-align: center; }
-          .success h3 { color: #22c55e; margin: 0 0 8px; }
-          .cancelled { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; }
-          .cancelled h3 { color: #ef4444; }
-          .info { font-size: 12px; color: #9ca3af; margin-top: 20px; text-align: center; }
           .time-slots { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
           .time-slot { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: rgba(15,23,42,0.9); border: 1px solid rgba(148,163,184,0.3); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
           .time-slot:hover { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
+          .time-slot.selected { border-color: #22c55e; background: rgba(34,197,94,0.1); }
           .time-slot input[type="radio"] { width: 18px; height: 18px; accent-color: #f59e0b; }
           .time-slot label { flex: 1; cursor: pointer; font-size: 15px; color: #e5e7eb; }
-          .event-info { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
-          .event-info-title { font-size: 12px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
-          .event-info-text { font-size: 14px; color: #e5e7eb; }
-          .back-link { display: inline-block; margin-bottom: 20px; color: #9ca3af; text-decoration: none; font-size: 14px; }
+          .info { font-size: 12px; color: #9ca3af; margin-top: 20px; text-align: center; }
+          .back-link { display: inline-block; margin-bottom: 16px; color: #9ca3af; text-decoration: none; font-size: 14px; }
           .back-link:hover { color: #e5e7eb; }
+          .history { margin-top: 16px; padding: 12px; background: rgba(15,23,42,0.5); border-radius: 8px; font-size: 12px; color: #9ca3af; }
+          .divider { height: 1px; background: rgba(148,163,184,0.2); margin: 20px 0; }
         </style>
       </head>
       <body>
         <div class="card">
           <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
           
-          ${alreadyConfirmed ? `
-            <div class="success">
-              <h3>✅ Wizyta już potwierdzona</h3>
-              <p>Dziękujemy! Twoja wizyta została już wcześniej potwierdzona.</p>
-            </div>
-          ` : alreadyCancelled ? `
-            <div class="success cancelled">
-              <h3>❌ Wizyta została anulowana</h3>
-              <p>Ta wizyta została wcześniej anulowana. Skontaktuj się z nami, aby umówić nowy termin.</p>
-            </div>
-          ` : isReschedule ? `
-            <a href="/api/email/confirm/${req.params.token}" class="back-link">← Powrót</a>
+          ${isReschedule ? `
+            <a href="/api/email/confirm/${req.params.token}" class="back-link">← Powrót do szczegółów</a>
             <h2>Zmiana terminu</h2>
             <h1>Wybierz nową godzinę wizyty</h1>
             
-            <div class="event-info">
-              <div class="event-info-title">📍 ${list?.city || subscriber.city || 'Lokalizacja'}</div>
-              <div class="event-info-text">${list?.eventDates || subscriber.eventDate || 'Dostępne terminy'}</div>
-              ${list?.location ? `<div class="event-info-text" style="margin-top: 8px; font-size: 12px; color: #9ca3af;">${list.location}</div>` : ''}
+            <div class="details">
+              <div class="detail-row">
+                <span class="label">📍 Lokalizacja</span>
+                <span class="value">${list?.cityDisplay || list?.city || subscriber.city || 'Happy Smile'}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">📅 Dostępne terminy</span>
+                <span class="value">${list?.eventDates || subscriber.eventDate || '-'}</span>
+              </div>
+              ${list?.location ? `
+              <div class="detail-row">
+                <span class="label">🏨 Adres</span>
+                <span class="value" style="font-size: 12px; max-width: 200px;">${list.location}</span>
+              </div>
+              ` : ''}
             </div>
             
             <form id="rescheduleForm" method="POST" action="/api/email/confirm/${req.params.token}">
@@ -1685,9 +1694,9 @@ router.get('/confirm/:token', async (req, res) => {
               <div class="label" style="margin-bottom: 12px;">Wybierz preferowaną godzinę:</div>
               <div class="time-slots">
                 ${timeSlots.map((slot, index) => `
-                  <div class="time-slot">
-                    <input type="radio" name="newTimeSlot" id="slot${index}" value="${slot}" ${index === 0 ? 'checked' : ''}>
-                    <label for="slot${index}">${slot}</label>
+                  <div class="time-slot ${subscriber.eventTime === slot ? 'selected' : ''}">
+                    <input type="radio" name="newTimeSlot" id="slot${index}" value="${slot}" ${subscriber.eventTime === slot ? 'checked' : (index === 0 && !subscriber.eventTime ? 'checked' : '')}>
+                    <label for="slot${index}">${slot} ${subscriber.eventTime === slot ? '(obecny)' : ''}</label>
                   </div>
                 `).join('')}
               </div>
@@ -1695,40 +1704,80 @@ router.get('/confirm/:token', async (req, res) => {
               <textarea name="note" class="note-input" placeholder="Dodatkowe uwagi (opcjonalnie)..."></textarea>
               
               <div class="buttons">
-                <button type="submit" class="btn btn-confirm">✓ Potwierdź zmianę</button>
+                <button type="submit" class="btn btn-confirm">✓ Zapisz nowy termin</button>
               </div>
             </form>
           ` : `
-            <h2>Potwierdzenie wizyty</h2>
-            <h1>Twoje spotkanie dentystyczne</h1>
+            <h2>Moja wizyta</h2>
+            <h1>Panel pacjenta</h1>
             
-            <div class="details">
-              <div class="label">Imię</div>
-              <div class="value">${subscriber.fullName || subscriber.firstName || 'Pacjent'}</div>
-              
-              <div class="label">Data i godzina</div>
-              <div class="value">${list?.eventDates || subscriber.eventDate || 'Brak daty'} ${subscriber.eventTime ? 'o ' + subscriber.eventTime : ''}</div>
-              
-              <div class="label">Miejsce</div>
-              <div class="value">${list?.city || subscriber.city || 'Happy Smile Clinics'}</div>
-              ${list?.location ? `<div class="value" style="font-size: 13px; color: #9ca3af;">${list.location}</div>` : ''}
+            <div class="status-badge" style="background: ${currentStatus.bg}; color: ${currentStatus.color}; border: 1px solid ${currentStatus.color}40;">
+              ${currentStatus.icon} ${currentStatus.text}
             </div>
             
-            <form id="confirmForm" method="POST" action="/api/email/confirm/${req.params.token}">
-              <textarea name="note" class="note-input" placeholder="Dodatkowe uwagi lub pytania (opcjonalnie)..."></textarea>
-              
-              <div class="buttons">
-                <button type="submit" name="action" value="confirm" class="btn btn-confirm">✓ Potwierdzam</button>
+            <div class="details">
+              <div class="detail-row">
+                <span class="label">👤 Pacjent</span>
+                <span class="value">${subscriber.fullName || subscriber.firstName || 'Pacjent'}</span>
               </div>
-              <div class="buttons" style="margin-top: 8px;">
-                <a href="/api/email/confirm/${req.params.token}?reschedule=true" class="btn btn-reschedule" style="text-decoration: none; text-align: center;">📅 Zmień termin</a>
+              <div class="detail-row">
+                <span class="label">📅 Data</span>
+                <span class="value">${list?.eventDates || subscriber.eventDate || '-'}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">🕐 Godzina</span>
+                <span class="value" style="color: ${subscriber.eventTime ? '#22c55e' : '#f59e0b'};">${subscriber.eventTime || 'Nie wybrano'}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">📍 Miejsce</span>
+                <span class="value">${list?.cityDisplay || list?.city || subscriber.city || '-'}</span>
+              </div>
+              ${list?.location ? `
+              <div class="detail-row">
+                <span class="label">🏨 Adres</span>
+                <span class="value" style="font-size: 12px; max-width: 200px;">${list.location}</span>
+              </div>
+              ` : ''}
+            </div>
+            
+            ${subscriber.confirmationNote ? `
+            <div class="history">
+              <strong>📝 Twoja notatka:</strong><br>
+              ${subscriber.confirmationNote}
+            </div>
+            ` : ''}
+            
+            ${subscriber.confirmedAt ? `
+            <div class="history">
+              <strong>📆 Ostatnia aktualizacja:</strong> ${new Date(subscriber.confirmedAt).toLocaleString('pl-PL')}
+            </div>
+            ` : ''}
+            
+            <div class="divider"></div>
+            
+            <form id="confirmForm" method="POST" action="/api/email/confirm/${req.params.token}">
+              <textarea name="note" class="note-input" placeholder="Dodatkowe uwagi lub pytania..."></textarea>
+              
+              ${status !== 'confirmed' ? `
+              <div class="buttons">
+                <button type="submit" name="action" value="confirm" class="btn btn-confirm">✓ Potwierdzam wizytę</button>
+              </div>
+              ` : ''}
+              
+              <div class="buttons" style="margin-top: 10px;">
+                <a href="/api/email/confirm/${req.params.token}?reschedule=true" class="btn btn-reschedule">📅 Zmień godzinę</a>
+                ${status !== 'cancelled' ? `
                 <button type="submit" name="action" value="cancel" class="btn btn-cancel">✗ Anuluję</button>
+                ` : `
+                <button type="submit" name="action" value="confirm" class="btn btn-secondary">🔄 Przywróć wizytę</button>
+                `}
               </div>
             </form>
           `}
           
           <p class="info">
-            Masz pytania? Odpowiedz na e-mail lub napisz do nas na WhatsApp.
+            Masz pytania? Odpowiedz na e-mail lub napisz do nas na WhatsApp.<br>
+            <small style="opacity: 0.7;">Ten link jest aktywny tylko dla Ciebie.</small>
           </p>
         </div>
       </body>
