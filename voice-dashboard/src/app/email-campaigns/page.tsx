@@ -84,6 +84,7 @@ export default function EmailCampaignsPage() {
   // Filters
   const [selectedListId, setSelectedListId] = useState<number | null>(null)
   const [subscriberPage, setSubscriberPage] = useState(1)
+  const [activeTab, setActiveTab] = useState('campaigns')
   
   // Modals
   const [templateModalOpen, setTemplateModalOpen] = useState(false)
@@ -218,6 +219,7 @@ export default function EmailCampaignsPage() {
         setMessage('✅ Liste oluşturuldu')
       }
       setListModalOpen(false)
+      setEditingList(null)
       loadData()
     } catch (error: any) {
       setMessage(`❌ Hata: ${error.message}`)
@@ -238,6 +240,7 @@ export default function EmailCampaignsPage() {
   const handleViewListSubscribers = (list: EmailList) => {
     setSelectedListId(list.id)
     setSubscriberPage(1)
+    setActiveTab('subscribers') // Aboneler tab'ına geç
   }
 
   // Subscriber handlers
@@ -468,7 +471,7 @@ Başarısız: ${stats.failed}
         </div>
 
         {/* Main Content */}
-        <Tabs defaultValue="campaigns" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-5 max-w-3xl">
             <TabsTrigger value="campaigns" className="flex items-center gap-2">
               <Send className="h-4 w-4" />
@@ -617,7 +620,7 @@ Başarısız: ${stats.failed}
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">
-                <Button type="button" variant="outline" onClick={() => setListModalOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => { setListModalOpen(false); setEditingList(null); }}>
                   İptal
                 </Button>
                 <Button type="submit">
