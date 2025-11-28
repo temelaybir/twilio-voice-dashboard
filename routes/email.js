@@ -50,10 +50,10 @@ router.use(ensureDatabase);
 
 // Rate limit ayarları (Google Workspace limitleri)
 const RATE_LIMITS = {
-  emailsPerMinute: parseInt(process.env.BULK_EMAIL_RATE_PER_MINUTE || '30'),
+  emailsPerMinute: parseInt(process.env.BULK_EMAIL_RATE_PER_MINUTE || '25'),
   dailyLimit: parseInt(process.env.BULK_EMAIL_DAILY_LIMIT || '2000'),
-  delayBetweenEmails: parseInt(process.env.BULK_EMAIL_DELAY_MS || '500'), // 0.5 saniye (Vercel timeout için optimize)
-  batchSize: parseInt(process.env.BULK_EMAIL_BATCH_SIZE || '50') // Batch başına email sayısı
+  delayBetweenEmails: parseInt(process.env.BULK_EMAIL_DELAY_MS || '2500'), // 2.5 saniye (spam koruması)
+  batchSize: parseInt(process.env.BULK_EMAIL_BATCH_SIZE || '20') // Batch başına email sayısı (timeout için)
 };
 
 // SMTP Transporter (lazy initialization)
