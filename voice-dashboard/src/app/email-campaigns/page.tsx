@@ -621,7 +621,7 @@ Başarısız: ${stats.failed}
       {/* Simple Subscriber Modal */}
       {subscriberModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">Yeni Abone Ekle</h2>
             <form onSubmit={async (e) => {
               e.preventDefault()
@@ -641,6 +641,9 @@ Başarısız: ${stats.failed}
                   lastName: formData.get('lastName') as string,
                   phone: phone || undefined,
                   city: formData.get('city') as string,
+                  stage: formData.get('stage') as string,
+                  eventDate: formData.get('eventDate') as string,
+                  eventTime: formData.get('eventTime') as string,
                   listId: parseInt(formData.get('listId') as string)
                 })
                 setMessage('✅ Abone eklendi')
@@ -685,6 +688,32 @@ Başarısız: ${stats.failed}
                     className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="İstanbul"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Aşama/Stage</label>
+                  <input
+                    name="stage"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="Yeni Lead"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Etkinlik Tarihi</label>
+                    <input
+                      name="eventDate"
+                      type="date"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Etkinlik Saati</label>
+                    <input
+                      name="eventTime"
+                      type="time"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Liste *</label>

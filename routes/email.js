@@ -505,7 +505,7 @@ router.post('/subscribers', async (req, res) => {
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
     const listRepo = AppDataSource.getRepository(EmailList);
     
-    const { email, firstName, lastName, phone, city, customFields, listId } = req.body;
+    const { email, firstName, lastName, phone, city, stage, eventDate, eventTime, customFields, listId } = req.body;
     
     // En az email veya telefon olmalı
     if ((!email && !phone) || !listId) {
@@ -543,6 +543,9 @@ router.post('/subscribers', async (req, res) => {
       lastName,
       phone: phone || null,
       city: city || null,
+      stage: stage || null,
+      eventDate: eventDate || null,
+      eventTime: eventTime || null,
       customFields: customFields ? JSON.stringify(customFields) : null,
       listId: parseInt(listId),
       unsubscribeToken: generateUnsubscribeToken()
