@@ -146,16 +146,11 @@ function replaceTemplateVariables(content, variables) {
   return result;
 }
 
-// Email subject için RFC 2047 UTF-8 Base64 encoding (emoji ve özel karakterler için)
+// Email subject için Nodemailer'ın native UTF-8 desteğini kullan
+// Nodemailer otomatik olarak RFC 2047 encoding yapıyor
 function encodeSubject(subject) {
-  // ASCII dışı karakter var mı kontrol et
-  const hasNonAscii = /[^\x00-\x7F]/.test(subject);
-  if (!hasNonAscii) {
-    return subject; // Sadece ASCII varsa encoding gerekmez
-  }
-  // UTF-8 Base64 encoding (RFC 2047)
-  const encoded = Buffer.from(subject, 'utf-8').toString('base64');
-  return `=?UTF-8?B?${encoded}?=`;
+  // Nodemailer'a doğrudan UTF-8 string ver, o kendi encode edecek
+  return subject;
 }
 
 // Helper: Unsubscribe link ekle
