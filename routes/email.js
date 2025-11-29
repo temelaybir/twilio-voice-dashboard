@@ -2367,5 +2367,66 @@ router.post('/test', async (req, res) => {
   }
 });
 
+// ==================== DATABASE MIGRATION ====================
+// MySQL tablolarını utf8mb4 charset'e dönüştür (emoji desteği)
+router.post('/migrate-charset', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    
+    if (!AppDataSource || !AppDataSource.isInitialized) {
+      return res.status(503).json({ error: 'Database bağlantısı hazır değil' });
+    }
+    
+    // MySQL mi kontrol et
+    const dbType = AppDataSource.options.type;
+    if (dbType !== 'mysql') {
+      return res.json({ 
+        success: true, 
+        message: `${dbType} kullanılıyor - charset migration gerekli değil` 
+      });
+    }
+    
+    const queryRunner = AppDataSource.createQueryRunner();
+    await queryRunner.connect();
+    
+    const tables = [
+      'email_templates',
+      'email_lists', 
+      'email_subscribers',
+      'email_campaigns',
+      'email_sends'
+    ];
+    
+    const results = [];
+    
+    for (const table of tables) {
+      try {
+        // Tablo charset'ini utf8mb4 yap
+        await queryRunner.query(`
+          ALTER TABLE ${table} 
+          CONVERT TO CHARACTER SET utf8mb4 
+          COLLATE utf8mb4_unicode_ci
+        `);
+        results.push({ table, status: 'success' });
+        logger.info(`✅ ${table} tablosu utf8mb4'e dönüştürüldü`);
+      } catch (err) {
+        results.push({ table, status: 'error', error: err.message });
+        logger.warn(`⚠️ ${table} tablosu dönüştürülemedi: ${err.message}`);
+      }
+    }
+    
+    await queryRunner.release();
+    
+    res.json({ 
+      success: true, 
+      message: 'Charset migration tamamlandı',
+      results 
+    });
+  } catch (error) {
+    logger.error('Charset migration hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
 
