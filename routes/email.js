@@ -146,6 +146,18 @@ function replaceTemplateVariables(content, variables) {
   return result;
 }
 
+// Email subject için RFC 2047 UTF-8 Base64 encoding (emoji ve özel karakterler için)
+function encodeSubject(subject) {
+  // ASCII dışı karakter var mı kontrol et
+  const hasNonAscii = /[^\x00-\x7F]/.test(subject);
+  if (!hasNonAscii) {
+    return subject; // Sadece ASCII varsa encoding gerekmez
+  }
+  // UTF-8 Base64 encoding (RFC 2047)
+  const encoded = Buffer.from(subject, 'utf-8').toString('base64');
+  return `=?UTF-8?B?${encoded}?=`;
+}
+
 // Helper: Unsubscribe link ekle
 function addUnsubscribeLink(htmlContent, unsubscribeUrl) {
   const unsubscribeHtml = `
@@ -1410,7 +1422,7 @@ router.post('/campaigns/:id/send', async (req, res) => {
           ? replaceTemplateVariables(template.textContent, variables)
           : null;
         
-        const subject = campaign.subject 
+        const subjectRaw = campaign.subject 
           ? replaceTemplateVariables(campaign.subject, variables)
           : replaceTemplateVariables(template.subject, variables);
         
@@ -1418,7 +1430,7 @@ router.post('/campaigns/:id/send', async (req, res) => {
         const mailOptions = {
           from: `"${campaign.fromName || 'Happy Smile Clinics'}" <${campaign.fromEmail || process.env.BULK_EMAIL_USER}>`,
           to: subscriber.email,
-          subject,
+          subject: encodeSubject(subjectRaw),
           html: htmlContent,
           text: textContent,
           headers: {
@@ -1662,14 +1674,14 @@ router.post('/campaigns/:id/resume', async (req, res) => {
         let htmlContent = replaceTemplateVariables(template.htmlContent, variables);
         htmlContent = addUnsubscribeLink(htmlContent, unsubscribeUrl);
         
-        const subject = campaign.subject 
+        const subjectRaw = campaign.subject 
           ? replaceTemplateVariables(campaign.subject, variables)
           : replaceTemplateVariables(template.subject, variables);
         
         const mailOptions = {
           from: `"${campaign.fromName || 'Happy Smile Clinics'}" <${campaign.fromEmail || process.env.BULK_EMAIL_USER}>`,
           to: subscriber.email,
-          subject,
+          subject: encodeSubject(subjectRaw),
           html: htmlContent,
           headers: {
             'List-Unsubscribe': `<${unsubscribeUrl}>`,
@@ -2341,7 +2353,7 @@ router.post('/test', async (req, res) => {
     const mailOptions = {
       from: `"${process.env.BULK_EMAIL_FROM_NAME || 'Happy Smile Clinics'}" <${process.env.BULK_EMAIL_USER}>`,
       to,
-      subject: subject || 'Test Email - Happy Smile Clinics',
+      subject: encodeSubject(subject || 'Test Email - Happy Smile Clinics'),
       html: html || '<h1>Test Email</h1><p>Bu bir test emailidir.</p>',
       text: text || 'Bu bir test emailidir.'
     };
