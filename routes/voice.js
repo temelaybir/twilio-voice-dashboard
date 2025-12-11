@@ -438,6 +438,395 @@ router.post('/start-bulk', async (req, res) => {
   }
 });
 
+// ==================== LİSTE BAZLI TOPLU ARAMA ====================
+
+// POST /api/calls/start-bulk-from-list - Email listesinden toplu arama başlat
+router.post('/start-bulk-from-list', async (req, res) => {
+  logger.info('Liste bazlı toplu arama isteği alındı', { body: req.body });
+  
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    if (!twilioClient) {
+      throw new Error('Twilio istemcisi başlatılmadı');
+    }
+    
+    const { listIds } = req.body;
+    
+    if (!listIds || !Array.isArray(listIds) || listIds.length === 0) {
+      return res.status(400).json({ error: 'En az bir liste seçilmeli' });
+    }
+    
+    const { EmailList } = require('../models/EmailList');
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { CallQueue } = require('../models/CallQueue');
+    
+    const listRepo = AppDataSource.getRepository(EmailList);
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const queueRepo = AppDataSource.getRepository(CallQueue);
+    
+    // Listeleri al
+    const lists = await listRepo.find({
+      where: listIds.map(id => ({ id: parseInt(id) }))
+    });
+    
+    if (lists.length === 0) {
+      return res.status(404).json({ error: 'Listeler bulunamadı' });
+    }
+    
+    // Listelerden aktif aboneleri al (telefon numarası olanlar)
+    const subscribers = await subscriberRepo.find({
+      where: listIds.map(id => ({ listId: parseInt(id), status: 'active' }))
+    });
+    
+    // Telefon numarası olanları filtrele
+    const phoneNumbers = subscribers
+      .filter(s => s.phone && s.phone.trim() !== '')
+      .map(s => {
+        let phone = s.phone.trim();
+        // Numarayı normalize et
+        if (!phone.startsWith('+')) {
+          phone = '+' + phone;
+        }
+        return phone;
+      })
+      // Tekrar edenleri kaldır
+      .filter((phone, index, self) => self.indexOf(phone) === index);
+    
+    if (phoneNumbers.length === 0) {
+      return res.status(400).json({ error: 'Seçilen listelerde telefon numarası olan abone bulunamadı' });
+    }
+    
+    // Kuyruk oluştur
+    const listNames = lists.map(l => l.name).join(', ');
+    const queue = queueRepo.create({
+      name: `Toplu Arama: ${listNames}`,
+      listId: listIds[0], // İlk liste ID
+      status: 'pending',
+      totalNumbers: phoneNumbers.length,
+      phoneNumbers: JSON.stringify(phoneNumbers),
+      results: '[]',
+      errors: '[]'
+    });
+    await queueRepo.save(queue);
+    
+    logger.info(`📞 Toplu arama kuyruğu oluşturuldu: ${queue.id} - ${phoneNumbers.length} numara`);
+    
+    res.json({
+      success: true,
+      message: `${phoneNumbers.length} numaralı arama kuyruğu oluşturuldu`,
+      queueId: queue.id,
+      totalNumbers: phoneNumbers.length,
+      lists: lists.map(l => ({ id: l.id, name: l.name }))
+    });
+    
+  } catch (error) {
+    logger.error('Liste bazlı toplu arama hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/calls/queue/:id/start - Kuyruğu başlat (batch bazlı)
+router.post('/queue/:id/start', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    if (!twilioClient) {
+      throw new Error('Twilio istemcisi başlatılmadı');
+    }
+    
+    const { CallQueue } = require('../models/CallQueue');
+    const queueRepo = AppDataSource.getRepository(CallQueue);
+    
+    const queue = await queueRepo.findOne({ where: { id: parseInt(req.params.id) } });
+    
+    if (!queue) {
+      return res.status(404).json({ error: 'Kuyruk bulunamadı' });
+    }
+    
+    // Sadece pending veya paused durumundaki kuyruklar başlatılabilir
+    if (queue.status !== 'pending' && queue.status !== 'paused') {
+      return res.status(400).json({ 
+        error: 'Bu kuyruk başlatılamaz',
+        currentStatus: queue.status 
+      });
+    }
+    
+    const phoneNumbers = JSON.parse(queue.phoneNumbers || '[]');
+    const results = JSON.parse(queue.results || '[]');
+    const errors = JSON.parse(queue.errors || '[]');
+    
+    // Zaten aranmış numaraları bul
+    const calledNumbers = new Set([
+      ...results.map(r => r.to),
+      ...errors.map(e => e.to)
+    ]);
+    
+    // Henüz aranmamış numaraları filtrele
+    const remainingNumbers = phoneNumbers.filter(p => !calledNumbers.has(p));
+    
+    if (remainingNumbers.length === 0) {
+      queue.status = 'completed';
+      queue.completedAt = new Date();
+      await queueRepo.save(queue);
+      
+      return res.json({
+        success: true,
+        message: 'Tüm aramalar tamamlandı',
+        completed: true,
+        totalNumbers: phoneNumbers.length,
+        calledCount: queue.calledCount,
+        successCount: queue.successCount,
+        failedCount: queue.failedCount
+      });
+    }
+    
+    // Batch size: 10 numara
+    const BATCH_SIZE = 10;
+    const batch = remainingNumbers.slice(0, BATCH_SIZE);
+    
+    // Kuyruğu güncelle
+    queue.status = 'processing';
+    if (!queue.startedAt) queue.startedAt = new Date();
+    queue.currentBatch++;
+    await queueRepo.save(queue);
+    
+    logger.info(`📞 Batch ${queue.currentBatch} başlatılıyor: ${batch.length} numara`);
+    
+    // Webhook URL'lerini oluştur
+    const webhookUrls = global.webhookConfig?.webhooks || {
+      flow: `${process.env.WEBHOOK_BASE_URL || process.env.NGROK_URL || 'https://happysmileclinics.net'}/api/calls/webhooks/flow`,
+      status: `${process.env.WEBHOOK_BASE_URL || process.env.NGROK_URL || 'https://happysmileclinics.net'}/api/calls/webhooks/status`,
+      dtmf: `${process.env.WEBHOOK_BASE_URL || process.env.NGROK_URL || 'https://happysmileclinics.net'}/api/calls/webhooks/dtmf`
+    };
+    
+    // Flow parametreleri
+    const flowParameters = {
+      flowWebhook: webhookUrls.flow,
+      statusWebhook: webhookUrls.status,
+      dtmfWebhook: webhookUrls.dtmf,
+      WEBHOOK_BASE_URL: global.webhookConfig?.webhookBaseUrl || process.env.WEBHOOK_BASE_URL || process.env.NGROK_URL,
+      timeout: 60,
+      machineDetection: 'Enable',
+      asyncAmd: true,
+      amdStatusCallback: webhookUrls.status,
+      ringTime: 20,
+      answerOnBridge: true,
+      record: false
+    };
+    
+    // Batch'teki her numara için çağrı başlat
+    const batchResults = [];
+    const batchErrors = [];
+    
+    for (let i = 0; i < batch.length; i++) {
+      const phoneNumber = batch[i];
+      
+      try {
+        // 1 saniye delay (rate limit için)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        const execution = await twilioClient.studio.v2.flows(process.env.TWILIO_FLOW_SID)
+          .executions
+          .create({
+            to: phoneNumber,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            parameters: flowParameters
+          });
+        
+        logger.info(`✅ Arama başlatıldı: ${phoneNumber} (${execution.sid})`);
+        batchResults.push({ to: phoneNumber, executionSid: execution.sid, time: new Date().toISOString() });
+        
+      } catch (err) {
+        logger.error(`❌ Arama hatası: ${phoneNumber} - ${err.message}`);
+        batchErrors.push({ to: phoneNumber, error: err.message, code: err.code, time: new Date().toISOString() });
+      }
+    }
+    
+    // Sonuçları kaydet
+    const allResults = [...results, ...batchResults];
+    const allErrors = [...errors, ...batchErrors];
+    
+    queue.results = JSON.stringify(allResults);
+    queue.errors = JSON.stringify(allErrors);
+    queue.calledCount = allResults.length + allErrors.length;
+    queue.successCount = allResults.length;
+    queue.failedCount = allErrors.length;
+    
+    // Tamamlandı mı kontrol et
+    const remaining = phoneNumbers.length - queue.calledCount;
+    const isCompleted = remaining <= 0;
+    
+    if (isCompleted) {
+      queue.status = 'completed';
+      queue.completedAt = new Date();
+      logger.info(`✅ Kuyruk tamamlandı: ${queue.id} - ${queue.successCount} başarılı, ${queue.failedCount} başarısız`);
+    } else {
+      queue.status = 'paused'; // Frontend auto-continue yapacak
+      logger.info(`⏸️ Batch tamamlandı: ${batchResults.length} başarılı, ${batchErrors.length} başarısız, ${remaining} kaldı`);
+    }
+    
+    await queueRepo.save(queue);
+    
+    res.json({
+      success: true,
+      message: isCompleted 
+        ? `Tüm aramalar tamamlandı: ${queue.successCount} başarılı, ${queue.failedCount} başarısız`
+        : `Batch tamamlandı: ${batchResults.length} arama yapıldı, ${remaining} kaldı`,
+      completed: isCompleted,
+      queueId: queue.id,
+      totalNumbers: phoneNumbers.length,
+      calledCount: queue.calledCount,
+      successCount: queue.successCount,
+      failedCount: queue.failedCount,
+      batchSent: batchResults.length,
+      batchFailed: batchErrors.length,
+      remaining: remaining,
+      shouldContinue: !isCompleted
+    });
+    
+  } catch (error) {
+    logger.error('Kuyruk başlatma hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/calls/queues - Tüm kuyrukları listele
+router.get('/queues', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { CallQueue } = require('../models/CallQueue');
+    const queueRepo = AppDataSource.getRepository(CallQueue);
+    
+    const queues = await queueRepo.find({
+      order: { createdAt: 'DESC' },
+      take: 50
+    });
+    
+    res.json({
+      success: true,
+      data: queues.map(q => ({
+        ...q,
+        phoneNumbers: undefined, // Büyük veriyi gönderme
+        results: undefined,
+        errors: undefined
+      }))
+    });
+    
+  } catch (error) {
+    logger.error('Kuyruk listesi hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/calls/queue/:id - Kuyruk detayı
+router.get('/queue/:id', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { CallQueue } = require('../models/CallQueue');
+    const queueRepo = AppDataSource.getRepository(CallQueue);
+    
+    const queue = await queueRepo.findOne({ where: { id: parseInt(req.params.id) } });
+    
+    if (!queue) {
+      return res.status(404).json({ error: 'Kuyruk bulunamadı' });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        ...queue,
+        phoneNumbers: JSON.parse(queue.phoneNumbers || '[]'),
+        results: JSON.parse(queue.results || '[]'),
+        errors: JSON.parse(queue.errors || '[]')
+      }
+    });
+    
+  } catch (error) {
+    logger.error('Kuyruk detay hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/calls/queue/:id/pause - Kuyruğu duraklat
+router.post('/queue/:id/pause', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { CallQueue } = require('../models/CallQueue');
+    const queueRepo = AppDataSource.getRepository(CallQueue);
+    
+    const queue = await queueRepo.findOne({ where: { id: parseInt(req.params.id) } });
+    
+    if (!queue) {
+      return res.status(404).json({ error: 'Kuyruk bulunamadı' });
+    }
+    
+    queue.status = 'paused';
+    await queueRepo.save(queue);
+    
+    logger.info(`⏸️ Kuyruk duraklatıldı: ${queue.id}`);
+    
+    res.json({
+      success: true,
+      message: 'Kuyruk duraklatıldı'
+    });
+    
+  } catch (error) {
+    logger.error('Kuyruk duraklatma hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/calls/queue/:id - Kuyruğu sil
+router.delete('/queue/:id', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { CallQueue } = require('../models/CallQueue');
+    const queueRepo = AppDataSource.getRepository(CallQueue);
+    
+    const result = await queueRepo.delete(parseInt(req.params.id));
+    
+    if (result.affected === 0) {
+      return res.status(404).json({ error: 'Kuyruk bulunamadı' });
+    }
+    
+    logger.info(`🗑️ Kuyruk silindi: ${req.params.id}`);
+    
+    res.json({
+      success: true,
+      message: 'Kuyruk silindi'
+    });
+    
+  } catch (error) {
+    logger.error('Kuyruk silme hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Flow webhook
 router.post('/webhooks/flow', async (req, res) => {
   try {

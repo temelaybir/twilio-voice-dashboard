@@ -250,4 +250,158 @@ export async function getMonthlySummary(year?: number, month?: number) {
   } catch (error) {
     throw error
   }
-} 
+}
+
+// ==================== TOPLU ARAMA (CALL QUEUE) ====================
+
+export interface CallQueue {
+  id: number
+  name: string
+  listId: number | null
+  status: 'pending' | 'processing' | 'paused' | 'completed' | 'failed'
+  totalNumbers: number
+  calledCount: number
+  successCount: number
+  failedCount: number
+  currentBatch: number
+  startedAt: string | null
+  completedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StartQueueResult {
+  success: boolean
+  message: string
+  completed: boolean
+  queueId: number
+  totalNumbers: number
+  calledCount: number
+  successCount: number
+  failedCount: number
+  batchSent: number
+  batchFailed: number
+  remaining: number
+  shouldContinue: boolean
+}
+
+// Listelerden toplu arama kuyruğu oluştur
+export async function createBulkCallFromLists(listIds: number[]): Promise<{
+  success: boolean
+  message: string
+  queueId: number
+  totalNumbers: number
+  lists: Array<{ id: number; name: string }>
+}> {
+  const response = await fetch(`${API_BASE_URL}/calls/start-bulk-from-list`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ listIds })
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
+// Kuyruğu başlat (batch bazlı)
+export async function startCallQueue(queueId: number): Promise<StartQueueResult> {
+  const response = await fetch(`${API_BASE_URL}/calls/queue/${queueId}/start`, {
+    method: 'POST'
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
+// Auto-continue: Tamamlanana kadar devam et
+export async function startCallQueueWithAutoContinue(
+  queueId: number,
+  onProgress?: (result: StartQueueResult) => void
+): Promise<StartQueueResult> {
+  let lastResult: StartQueueResult | null = null
+  
+  while (true) {
+    const result = await startCallQueue(queueId)
+    lastResult = result
+    
+    if (onProgress) {
+      onProgress(result)
+    }
+    
+    if (result.completed || !result.shouldContinue) {
+      break
+    }
+    
+    // Batch'ler arası bekleme (10 arama için ~15 saniye)
+    await new Promise(resolve => setTimeout(resolve, 2000))
+  }
+  
+  return lastResult!
+}
+
+// Tüm kuyrukları listele
+export async function getCallQueues(): Promise<{ success: boolean; data: CallQueue[] }> {
+  const response = await fetch(`${API_BASE_URL}/calls/queues`)
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
+// Kuyruk detayı
+export async function getCallQueue(queueId: number): Promise<{
+  success: boolean
+  data: CallQueue & {
+    phoneNumbers: string[]
+    results: Array<{ to: string; executionSid: string; time: string }>
+    errors: Array<{ to: string; error: string; code?: string; time: string }>
+  }
+}> {
+  const response = await fetch(`${API_BASE_URL}/calls/queue/${queueId}`)
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
+// Kuyruğu duraklat
+export async function pauseCallQueue(queueId: number): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/calls/queue/${queueId}/pause`, {
+    method: 'POST'
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}
+
+// Kuyruğu sil
+export async function deleteCallQueue(queueId: number): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/calls/queue/${queueId}`, {
+    method: 'DELETE'
+  })
+  const data = await response.json()
+  
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`)
+  }
+  
+  return data
+}

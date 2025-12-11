@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { RefreshCw, Phone, PhoneCall, History, Settings, Activity, FileText, LogOut, Mail, Users, ChevronDown } from 'lucide-react'
 
-import { startCall, startBulkCall, getAllCallHistoryForExport } from '@/lib/api'
+import { startCall, startBulkCall, getAllCallHistoryForExport, createBulkCallFromLists, startCallQueueWithAutoContinue, getCallQueues, pauseCallQueue, deleteCallQueue } from '@/lib/api'
+import type { CallQueue, StartQueueResult } from '@/lib/api'
 import { getLists, getListPhones } from '@/lib/email-api'
 import type { EmailList } from '@/types/email'
 import { useSocket } from '@/hooks/use-socket'
@@ -38,6 +39,13 @@ export default function DashboardPage() {
   const [listPhones, setListPhones] = useState<Array<{phone: string; name: string; city: string}>>([])
   const [loadingLists, setLoadingLists] = useState(false)
   const [showListSelector, setShowListSelector] = useState(false)
+  
+  // Toplu arama kuyruk sistemi
+  const [callQueues, setCallQueues] = useState<CallQueue[]>([])
+  const [activeQueueId, setActiveQueueId] = useState<number | null>(null)
+  const [queueProgress, setQueueProgress] = useState<StartQueueResult | null>(null)
+  const [selectedListsForCall, setSelectedListsForCall] = useState<number[]>([])
+  const [showQueueModal, setShowQueueModal] = useState(false)
   
   const { socket, isConnected, events, clearEvents, isHydrated, loadEventHistory, isPolling, lastUpdate } = useSocket()
   const { 
@@ -126,8 +134,109 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isBulkMode) {
       loadEmailLists()
+      loadCallQueues()
     }
   }, [isBulkMode, loadEmailLists])
+
+  // Kuyrukları yükle
+  const loadCallQueues = async () => {
+    try {
+      const response = await getCallQueues()
+      setCallQueues(response.data)
+    } catch (error) {
+      console.error('Kuyruk yükleme hatası:', error)
+    }
+  }
+
+  // Listelerden toplu arama başlat
+  const handleStartQueueFromLists = async () => {
+    if (selectedListsForCall.length === 0) {
+      setMessage('❌ En az bir liste seçin!')
+      return
+    }
+
+    setIsLoading(true)
+    setMessage('📞 Arama kuyruğu oluşturuluyor...')
+
+    try {
+      const result = await createBulkCallFromLists(selectedListsForCall)
+      setMessage(`✅ ${result.totalNumbers} numaralı kuyruk oluşturuldu!`)
+      setActiveQueueId(result.queueId)
+      setShowQueueModal(true)
+      setSelectedListsForCall([])
+      
+      // Otomatik başlat
+      await handleStartQueue(result.queueId)
+      
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Kuyruğu başlat ve auto-continue
+  const handleStartQueue = async (queueId: number) => {
+    setActiveQueueId(queueId)
+    setIsLoading(true)
+    setMessage('📞 Toplu arama başlatılıyor...')
+
+    try {
+      const result = await startCallQueueWithAutoContinue(queueId, (progress) => {
+        setQueueProgress(progress)
+        setMessage(`📞 Aranıyor: ${progress.calledCount}/${progress.totalNumbers} (${progress.remaining} kaldı)`)
+      })
+
+      if (result.completed) {
+        setMessage(`✅ Tamamlandı: ${result.successCount} başarılı, ${result.failedCount} başarısız`)
+      } else {
+        setMessage(`⏸️ Duraklatıldı: ${result.calledCount}/${result.totalNumbers}`)
+      }
+      
+      loadCallQueues()
+      setTimeout(() => refreshData(), 2000)
+      
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    } finally {
+      setIsLoading(false)
+      setActiveQueueId(null)
+      setQueueProgress(null)
+    }
+  }
+
+  // Kuyruğu duraklat
+  const handlePauseQueue = async (queueId: number) => {
+    try {
+      await pauseCallQueue(queueId)
+      setMessage('⏸️ Kuyruk duraklatıldı')
+      loadCallQueues()
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    }
+  }
+
+  // Kuyruğu sil
+  const handleDeleteQueue = async (queueId: number) => {
+    if (!confirm('Bu kuyruğu silmek istediğinize emin misiniz?')) return
+    
+    try {
+      await deleteCallQueue(queueId)
+      setMessage('🗑️ Kuyruk silindi')
+      loadCallQueues()
+    } catch (error: any) {
+      setMessage(`❌ Hata: ${error.message}`)
+    }
+  }
+
+  // Liste seçimi toggle
+  const toggleListSelection = (listId: number) => {
+    setSelectedListsForCall(prev => 
+      prev.includes(listId) 
+        ? prev.filter(id => id !== listId)
+        : [...prev, listId]
+    )
+  }
 
   // Toplu çağrı
   const handleBulkCall = async () => {
@@ -494,10 +603,151 @@ export default function DashboardPage() {
                       ) : (
                         <>
                           <PhoneCall className="w-4 h-4 mr-2" />
-                          {getValidNumberCount()} Numaraya Toplu Arama
+                          {getValidNumberCount()} Numaraya Toplu Arama (Max 10)
                         </>
                       )}
                     </Button>
+
+                    {/* Büyük Listeler İçin Kuyruk Sistemi */}
+                    <Separator className="my-4" />
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                          <Users className="h-4 w-4 text-purple-600" />
+                          Liste Bazlı Toplu Arama (Sınırsız)
+                        </h4>
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                          10'ar 10'ar
+                        </Badge>
+                      </div>
+                      
+                      <p className="text-xs text-gray-500">
+                        Büyük listeler için kuyruk sistemi. Listelerden tüm telefon numaralarını 10'ar 10'ar arar.
+                      </p>
+
+                      {/* Liste Seçimi */}
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto border rounded-lg p-2">
+                        {emailLists.length > 0 ? (
+                          emailLists.map(list => (
+                            <label
+                              key={list.id}
+                              className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                                selectedListsForCall.includes(list.id)
+                                  ? 'bg-purple-50 border border-purple-200'
+                                  : 'hover:bg-gray-50 border border-transparent'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedListsForCall.includes(list.id)}
+                                onChange={() => toggleListSelection(list.id)}
+                                className="h-4 w-4 text-purple-600 rounded"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{list.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {list.city && `📍 ${list.city} • `}
+                                  👥 {list.subscriberCount} abone
+                                </p>
+                              </div>
+                            </label>
+                          ))
+                        ) : (
+                          <p className="text-center text-sm text-gray-500 py-4">
+                            {loadingLists ? 'Yükleniyor...' : 'Liste bulunamadı'}
+                          </p>
+                        )}
+                      </div>
+
+                      {selectedListsForCall.length > 0 && (
+                        <div className="text-sm text-purple-700 bg-purple-50 p-2 rounded-lg">
+                          ✓ {selectedListsForCall.length} liste seçildi
+                        </div>
+                      )}
+
+                      <Button 
+                        onClick={handleStartQueueFromLists}
+                        disabled={isLoading || selectedListsForCall.length === 0}
+                        className="w-full bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isLoading && activeQueueId ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            {queueProgress 
+                              ? `${queueProgress.calledCount}/${queueProgress.totalNumbers} aranıyor...`
+                              : 'Başlatılıyor...'
+                            }
+                          </>
+                        ) : (
+                          <>
+                            <PhoneCall className="w-4 h-4 mr-2" />
+                            Seçili Listeleri Ara
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Aktif Kuyruklar */}
+                    {callQueues.length > 0 && (
+                      <>
+                        <Separator className="my-4" />
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-900 text-sm">📋 Arama Kuyrukları</h4>
+                          <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                            {callQueues.slice(0, 5).map(queue => (
+                              <div
+                                key={queue.id}
+                                className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{queue.name}</p>
+                                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    <span>{queue.calledCount}/{queue.totalNumbers}</span>
+                                    <Badge 
+                                      variant="outline"
+                                      className={
+                                        queue.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' :
+                                        queue.status === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                        queue.status === 'paused' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                        'bg-gray-50 text-gray-700 border-gray-200'
+                                      }
+                                    >
+                                      {queue.status === 'completed' ? '✅ Tamamlandı' :
+                                       queue.status === 'processing' ? '🔄 Devam Ediyor' :
+                                       queue.status === 'paused' ? '⏸️ Bekliyor' :
+                                       queue.status === 'pending' ? '⏳ Beklemede' :
+                                       queue.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {(queue.status === 'pending' || queue.status === 'paused') && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleStartQueue(queue.id)}
+                                      disabled={isLoading}
+                                      className="h-7 px-2 text-xs"
+                                    >
+                                      ▶️
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDeleteQueue(queue.id)}
+                                    className="h-7 px-2 text-xs text-red-500 hover:text-red-700"
+                                  >
+                                    🗑️
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
 

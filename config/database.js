@@ -15,6 +15,9 @@ let EmailSubscriber = null;
 let EmailCampaign = null;
 let EmailSend = null;
 
+// Call Queue entity
+let CallQueue = null;
+
 // Entity dosyalarının path'lerini kontrol et
 const eventHistoryPath = path.join(__dirname, '../models/EventHistory.js');
 const callPath = path.join(__dirname, '../models/Call.js');
@@ -87,6 +90,17 @@ try {
   logger.warn('⚠️ Email modülü entity\'leri import edilemedi (opsiyonel):', error.message);
 }
 
+// CallQueue entity import et
+try {
+  const callQueueModule = require('../models/CallQueue');
+  CallQueue = callQueueModule.CallQueue;
+  if (CallQueue) {
+    logger.info('✅ CallQueue entity başarıyla import edildi');
+  }
+} catch (error) {
+  logger.warn('⚠️ CallQueue entity import edilemedi (opsiyonel):', error.message);
+}
+
 // Vercel/Production environment kontrolü
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 
@@ -116,6 +130,7 @@ if (hasMySQL) {
     if (EmailSubscriber) entities.push(EmailSubscriber);
     if (EmailCampaign) entities.push(EmailCampaign);
     if (EmailSend) entities.push(EmailSend);
+    if (CallQueue) entities.push(CallQueue);
     
     logger.info(`MySQL için ${entities.length} entity yüklenecek: ${entities.map(e => e.options?.name || 'unknown').join(', ')}`);
     
@@ -168,6 +183,7 @@ else if (!isProduction) {
     if (EmailSubscriber) entities.push(EmailSubscriber);
     if (EmailCampaign) entities.push(EmailCampaign);
     if (EmailSend) entities.push(EmailSend);
+    if (CallQueue) entities.push(CallQueue);
     
     logger.info(`SQLite için ${entities.length} entity yüklenecek: ${entities.map(e => e.options?.name || 'unknown').join(', ')}`);
     
