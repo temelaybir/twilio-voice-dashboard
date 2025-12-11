@@ -996,6 +996,71 @@ router.post('/webhooks/dtmf', async (req, res) => {
       if (hasAction && dtmfData.action) {
         logger.info('DTMF aksiyon alındı:', dtmfData.action);
       }
+      
+      // ==================== EMAIL SUBSCRIBER ENTEGRASYONU ====================
+      // DTMF sonucunu email listesindeki abone ile eşleştir (telefon numarasına göre)
+      const digits = dtmfData.Digits || dtmfData.digits;
+      const phoneNumber = dtmfData.To || dtmfData.to;
+      
+      if (digits && phoneNumber) {
+        try {
+          const { AppDataSource } = require('../config/database');
+          if (AppDataSource?.isInitialized) {
+            const { EmailSubscriber } = require('../models/EmailSubscriber');
+            const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+            
+            // Telefon numarasını normalize et (+ ile ve + olmadan ara)
+            const normalizedPhone = phoneNumber.replace(/\s+/g, '').trim();
+            const phoneVariants = [
+              normalizedPhone,
+              normalizedPhone.startsWith('+') ? normalizedPhone.slice(1) : `+${normalizedPhone}`
+            ];
+            
+            // Bu telefon numarasına sahip aktif aboneleri bul
+            const subscribers = await subscriberRepo
+              .createQueryBuilder('s')
+              .where('s.phone IN (:...phones)', { phones: phoneVariants })
+              .andWhere('s.status = :status', { status: 'active' })
+              .getMany();
+            
+            if (subscribers.length > 0) {
+              // DTMF'e göre onay durumunu belirle
+              let confirmationStatus = 'pending';
+              let confirmationNote = null;
+              
+              if (digits === '1') {
+                confirmationStatus = 'confirmed';
+                confirmationNote = 'PHONE_CONFIRMED'; // Telefonla onaylandı
+                logger.info(`✅ Telefon onayı: ${phoneNumber} - ONAYLANDI`);
+              } else if (digits === '2') {
+                confirmationStatus = 'cancelled';
+                confirmationNote = 'PHONE_CANCELLED'; // Telefonla iptal edildi
+                logger.info(`❌ Telefon onayı: ${phoneNumber} - İPTAL EDİLDİ`);
+              } else if (digits === '3') {
+                confirmationStatus = 'rescheduled';
+                confirmationNote = 'PHONE_RESCHEDULED'; // Telefonla ertelendi
+                logger.info(`🔄 Telefon onayı: ${phoneNumber} - ERTELENDİ`);
+              }
+              
+              // Tüm eşleşen aboneleri güncelle
+              if (confirmationStatus !== 'pending') {
+                for (const subscriber of subscribers) {
+                  subscriber.confirmationStatus = confirmationStatus;
+                  subscriber.confirmationNote = confirmationNote;
+                  subscriber.confirmedAt = new Date();
+                  await subscriberRepo.save(subscriber);
+                  logger.info(`📞 Subscriber güncellendi: ID=${subscriber.id}, Email=${subscriber.email}, Status=${confirmationStatus}`);
+                }
+              }
+            } else {
+              logger.debug(`Telefon numarası için subscriber bulunamadı: ${phoneNumber}`);
+            }
+          }
+        } catch (error) {
+          logger.error('DTMF-Subscriber entegrasyon hatası:', error.message);
+          // Hata olsa bile webhook'u başarılı kabul et
+        }
+      }
     }
     
     // Hemen yanıt ver

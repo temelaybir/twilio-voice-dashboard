@@ -97,12 +97,25 @@ export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmations
       return <Badge className="bg-purple-100 text-purple-700 border-purple-300"><Calendar className="h-3 w-3 mr-1" /> Next Event</Badge>
     }
     
+    // Telefon onayları için özel badge'ler
+    const isPhoneConfirm = note?.startsWith('PHONE_');
+    const phoneIcon = isPhoneConfirm ? '📞 ' : '';
+    
     switch (status) {
       case 'confirmed':
+        if (note === 'PHONE_CONFIRMED') {
+          return <Badge className="bg-green-100 text-green-700 border-green-300"><CheckCircle2 className="h-3 w-3 mr-1" /> 📞 Tel. Onaylandı</Badge>
+        }
         return <Badge className="bg-green-100 text-green-700 border-green-300"><CheckCircle2 className="h-3 w-3 mr-1" /> Potwierdzone</Badge>
       case 'cancelled':
+        if (note === 'PHONE_CANCELLED') {
+          return <Badge className="bg-red-100 text-red-700 border-red-300"><XCircle className="h-3 w-3 mr-1" /> 📞 Tel. İptal</Badge>
+        }
         return <Badge className="bg-red-100 text-red-700 border-red-300"><XCircle className="h-3 w-3 mr-1" /> Anulowane</Badge>
       case 'rescheduled':
+        if (note === 'PHONE_RESCHEDULED') {
+          return <Badge className="bg-amber-100 text-amber-700 border-amber-300"><RefreshCw className="h-3 w-3 mr-1" /> 📞 Tel. Ertelendi</Badge>
+        }
         return <Badge className="bg-amber-100 text-amber-700 border-amber-300"><RefreshCw className="h-3 w-3 mr-1" /> Zmiana terminu</Badge>
       default:
         return <Badge className="bg-blue-100 text-blue-700 border-blue-300"><AlertCircle className="h-3 w-3 mr-1" /> Oczekuje</Badge>
