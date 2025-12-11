@@ -17,14 +17,16 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl()
 
-export async function startCall(phoneNumber: string) {
+export type TwilioRegion = 'poland' | 'uk'
+
+export async function startCall(phoneNumber: string, region: TwilioRegion = 'poland') {
   try {
     const response = await fetch(`${API_BASE_URL}/calls/start`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ to: phoneNumber }),
+      body: JSON.stringify({ to: phoneNumber, region }),
     })
     
     const data = await response.json()
@@ -39,14 +41,14 @@ export async function startCall(phoneNumber: string) {
   }
 }
 
-export async function startBulkCall(phoneNumbers: string[]) {
+export async function startBulkCall(phoneNumbers: string[], region: TwilioRegion = 'poland') {
   try {
     const response = await fetch(`${API_BASE_URL}/calls/start-bulk`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ phoneNumbers }),
+      body: JSON.stringify({ phoneNumbers, region }),
     })
     
     const data = await response.json()

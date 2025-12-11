@@ -47,6 +47,9 @@ export default function DashboardPage() {
   const [selectedListsForCall, setSelectedListsForCall] = useState<number[]>([])
   const [showQueueModal, setShowQueueModal] = useState(false)
   
+  // Twilio bölge seçimi (tekil ve toplu arama için)
+  const [selectedRegion, setSelectedRegion] = useState<'poland' | 'uk'>('poland')
+  
   const { socket, isConnected, events, clearEvents, isHydrated, loadEventHistory, isPolling, lastUpdate } = useSocket()
   const { 
     callHistory, 
@@ -76,11 +79,11 @@ export default function DashboardPage() {
     }
 
     setIsLoading(true)
-    setMessage('📞 Çağrı başlatılıyor...')
+    setMessage(`📞 [${selectedRegion.toUpperCase()}] Çağrı başlatılıyor...`)
 
     try {
-      const result = await startCall(phoneNumber)
-      setMessage(`✅ Çağrı başlatıldı! ID: ${result.data?.execution_sid?.slice(-8)}`)
+      const result = await startCall(phoneNumber, selectedRegion)
+      setMessage(`✅ [${selectedRegion.toUpperCase()}] Çağrı başlatıldı! ID: ${result.data?.execution_sid?.slice(-8)}`)
       setPhoneNumber('')
       
       // Call history'yi yenile
@@ -258,11 +261,11 @@ export default function DashboardPage() {
     }
 
     setIsLoading(true)
-    setMessage(`📞 ${validNumbers.length} numaraya toplu arama başlatılıyor...`)
+    setMessage(`📞 [${selectedRegion.toUpperCase()}] ${validNumbers.length} numaraya toplu arama başlatılıyor...`)
 
     try {
-      const result = await startBulkCall(validNumbers)
-      setMessage(`✅ Toplu arama başlatıldı! ${validNumbers.length} numara`)
+      const result = await startBulkCall(validNumbers, selectedRegion)
+      setMessage(`✅ [${selectedRegion.toUpperCase()}] Toplu arama başlatıldı! ${validNumbers.length} numara`)
       setBulkNumbers('')
       
       // Call history'yi yenile
@@ -462,6 +465,35 @@ export default function DashboardPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Bölge Seçimi - Her iki mod için de göster */}
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium text-gray-700">📞 Twilio Bölgesi:</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRegion('poland')}
+                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                        selectedRegion === 'poland'
+                          ? 'bg-red-500 text-white'
+                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      🇵🇱 Poland
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRegion('uk')}
+                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                        selectedRegion === 'uk'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      🇬🇧 UK
+                    </button>
+                  </div>
+                </div>
+
                 {!isBulkMode ? (
                   // Tekil çağrı formu
                   <>
@@ -486,7 +518,7 @@ export default function DashboardPage() {
                       ) : (
                         <>
                           <Phone className="w-4 h-4 mr-2" />
-                          Ara
+                          {selectedRegion === 'uk' ? '🇬🇧' : '🇵🇱'} Ara
                         </>
                       )}
                     </Button>

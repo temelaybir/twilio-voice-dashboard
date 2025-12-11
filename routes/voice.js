@@ -243,17 +243,28 @@ try {
 router.post('/start', async (req, res) => {
   logger.info('Çağrı başlatma isteği alındı (/start)', { body: req.body });
   try {
-    if (!twilioClient) {
-      throw new Error('Twilio istemcisi başlatılmadı');
-    }
-
     if (!req.body.to) {
       throw new Error('Telefon numarası gerekli');
     }
 
+    // Region seçimi (varsayılan: poland)
+    const region = req.body.region || 'poland';
+    const regionClient = getTwilioClient(region);
+    const regionConfig = getTwilioConfig(region);
+    
+    if (!regionClient) {
+      throw new Error(`${region.toUpperCase()} bölgesi için Twilio istemcisi başlatılmadı`);
+    }
+    
+    if (!regionConfig.flowSid) {
+      throw new Error(`${region.toUpperCase()} bölgesi için FLOW_SID tanımlanmamış`);
+    }
+    
+    logger.info(`📞 [${region.toUpperCase()}] Arama başlatılıyor: ${req.body.to}`);
+
     // Aktif çağrıları kontrol et
     try {
-      const activeExecutions = await twilioClient.studio.v2.flows(process.env.TWILIO_FLOW_SID)
+      const activeExecutions = await regionClient.studio.v2.flows(regionConfig.flowSid)
         .executions
         .list({status: 'active', limit: 5});
       
@@ -263,7 +274,7 @@ router.post('/start', async (req, res) => {
       if (activeExecutions.length > 0) {
         for (const execution of activeExecutions) {
           try {
-            await twilioClient.studio.v2.flows(process.env.TWILIO_FLOW_SID)
+            await regionClient.studio.v2.flows(regionConfig.flowSid)
               .executions(execution.sid)
               .update({status: 'ended'});
             logger.info(`Aktif çağrı sonlandırıldı: ${execution.sid}`);
@@ -301,21 +312,22 @@ router.post('/start', async (req, res) => {
     // Yeni çağrı başlat
     const logData = {
       to: req.body.to,
-      from: process.env.TWILIO_PHONE_NUMBER,
+      from: regionConfig.phoneNumber,
+      region: region,
       webhooks: webhookUrls,
       parameters: flowParameters
     };
-    logger.info('Yeni çağrı başlatılıyor (Twilio\'ya giden veri):', { logData });
+    logger.info(`[${region.toUpperCase()}] Yeni çağrı başlatılıyor:`, { logData });
 
-    const execution = await twilioClient.studio.v2.flows(process.env.TWILIO_FLOW_SID)
+    const execution = await regionClient.studio.v2.flows(regionConfig.flowSid)
       .executions
       .create({
         to: req.body.to,
-        from: process.env.TWILIO_PHONE_NUMBER,
+        from: regionConfig.phoneNumber,
         parameters: flowParameters
       });
 
-    logger.info('Çağrı başarıyla başlatıldı (Twilio\'dan gelen yanıt):', { executionSid: execution.sid });
+    logger.info(`[${region.toUpperCase()}] Çağrı başarıyla başlatıldı:`, { executionSid: execution.sid });
 
     // Veritabanı mevcutsa çağrı kaydını oluştur
     if (global.database && global.database.AppDataSource && global.Call) {
@@ -366,12 +378,21 @@ router.post('/start', async (req, res) => {
 router.post('/start-bulk', async (req, res) => {
   logger.info('Toplu çağrı başlatma isteği alındı (/start-bulk)', { body: req.body });
   try {
-    if (!twilioClient) {
-      throw new Error('Twilio istemcisi başlatılmadı');
-    }
-
     if (!req.body.phoneNumbers || !Array.isArray(req.body.phoneNumbers) || req.body.phoneNumbers.length === 0) {
       throw new Error('En az bir telefon numarası gerekli');
+    }
+    
+    // Region seçimi (varsayılan: poland)
+    const region = req.body.region || 'poland';
+    const regionClient = getTwilioClient(region);
+    const regionConfig = getTwilioConfig(region);
+    
+    if (!regionClient) {
+      throw new Error(`${region.toUpperCase()} bölgesi için Twilio istemcisi başlatılmadı`);
+    }
+    
+    if (!regionConfig.flowSid) {
+      throw new Error(`${region.toUpperCase()} bölgesi için FLOW_SID tanımlanmamış`);
     }
     
     // En fazla 10 telefon numarası ile sınırla
@@ -381,7 +402,7 @@ router.post('/start-bulk', async (req, res) => {
       throw new Error('Geçerli telefon numarası bulunamadı');
     }
 
-    logger.info(`Toplu arama başlatılıyor: ${phoneNumbers.length} numara`);
+    logger.info(`[${region.toUpperCase()}] Toplu arama başlatılıyor: ${phoneNumbers.length} numara`);
 
     // Webhook URL'lerini oluştur
     const webhookUrls = global.webhookConfig?.webhooks || {
@@ -417,25 +438,26 @@ router.post('/start-bulk', async (req, res) => {
         
         const logData = {
           to: phoneNumber,
-          from: process.env.TWILIO_PHONE_NUMBER,
+          from: regionConfig.phoneNumber,
+          region: region,
           parameters: flowParameters
         };
-        logger.info(`Toplu çağrı başlatılıyor (${phoneNumber}):`, { logData });
+        logger.info(`[${region.toUpperCase()}] Toplu çağrı başlatılıyor (${phoneNumber}):`, { logData });
 
-        const execution = await twilioClient.studio.v2.flows(process.env.TWILIO_FLOW_SID)
+        const execution = await regionClient.studio.v2.flows(regionConfig.flowSid)
           .executions
           .create({
             to: phoneNumber,
-            from: process.env.TWILIO_PHONE_NUMBER,
+            from: regionConfig.phoneNumber,
             parameters: flowParameters
           });
 
-        logger.info(`Toplu çağrı başarıyla başlatıldı (${phoneNumber}):`, { executionSid: execution.sid });
-        results.push({ to: phoneNumber, execution_sid: execution.sid });
+        logger.info(`[${region.toUpperCase()}] Toplu çağrı başarıyla başlatıldı (${phoneNumber}):`, { executionSid: execution.sid });
+        results.push({ to: phoneNumber, execution_sid: execution.sid, region: region });
         
       } catch (err) {
-        logger.error(`Toplu çağrı hatası (${phoneNumber}):`, { message: err.message, code: err.code });
-        errors.push({ to: phoneNumber, error: err.message, code: err.code });
+        logger.error(`[${region.toUpperCase()}] Toplu çağrı hatası (${phoneNumber}):`, { message: err.message, code: err.code });
+        errors.push({ to: phoneNumber, error: err.message, code: err.code, region: region });
       }
     };
 
@@ -2118,4 +2140,5 @@ router.get('/monthly-summary', async (req, res) => {
   }
 });
 
+module.exports = router; 
 module.exports = router; 
