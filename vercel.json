@@ -8,12 +8,23 @@
         "includeFiles": [
           "scripts/**",
           "config/**",
-          "daily-email-report.js"
+          "models/**",
+          "routes/**",
+          "daily-email-report.js",
+          "dailyCallSummary.js"
         ]
       }
     }
   ],
   "routes": [
+    {
+      "src": "/api/voice/(.*)",
+      "dest": "server.js"
+    },
+    {
+      "src": "/api/email/(.*)",
+      "dest": "server.js"
+    },
     {
       "src": "/api/calls/(.*)",
       "dest": "server.js"

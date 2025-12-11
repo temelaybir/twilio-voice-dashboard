@@ -496,12 +496,32 @@ export interface ConfirmationStats {
   rescheduled: number
 }
 
-export async function getConfirmations(): Promise<{
+export interface ConfirmationFilters {
+  listId?: number
+  city?: string
+  search?: string
+  status?: string
+}
+
+export interface ConfirmationFilterOptions {
+  cities: string[]
+  lists: Array<{ id: number; name: string; city?: string }>
+}
+
+export async function getConfirmations(filters?: ConfirmationFilters): Promise<{
   success: boolean
   data: EmailSubscriber[]
   stats: ConfirmationStats
+  filteredStats: ConfirmationStats
+  filters: ConfirmationFilterOptions
 }> {
-  const response = await fetch(`${API_BASE_URL}/email/confirmations`)
+  const params = new URLSearchParams()
+  if (filters?.listId) params.append('listId', filters.listId.toString())
+  if (filters?.city) params.append('city', filters.city)
+  if (filters?.search) params.append('search', filters.search)
+  if (filters?.status) params.append('status', filters.status)
+  
+  const response = await fetch(`${API_BASE_URL}/email/confirmations?${params}`)
   const data = await response.json()
   
   if (!response.ok) {

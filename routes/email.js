@@ -2184,18 +2184,63 @@ router.get('/confirmations', async (req, res) => {
     }
     
     const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { EmailList } = require('../models/EmailList');
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const listRepo = AppDataSource.getRepository(EmailList);
     
-    // Son 30 gündeki randevuları getir
-    const subscribers = await subscriberRepo
+    // Filtre parametreleri
+    const { listId, city, search, status } = req.query;
+    
+    // Query builder oluştur
+    const qb = subscriberRepo
+      .createQueryBuilder('s')
+      .where('s.confirmationToken IS NOT NULL');
+    
+    // Liste filtresi
+    if (listId) {
+      qb.andWhere('s.listId = :listId', { listId: parseInt(listId) });
+    }
+    
+    // Şehir filtresi
+    if (city) {
+      qb.andWhere('LOWER(s.city) = LOWER(:city)', { city });
+    }
+    
+    // Durum filtresi
+    if (status && status !== 'all') {
+      qb.andWhere('s.confirmationStatus = :status', { status });
+    }
+    
+    // Metin arama (isim, telefon, email)
+    if (search) {
+      qb.andWhere(
+        '(LOWER(s.fullName) LIKE LOWER(:search) OR LOWER(s.firstName) LIKE LOWER(:search) OR s.phone LIKE :search OR LOWER(s.email) LIKE LOWER(:search))',
+        { search: `%${search}%` }
+      );
+    }
+    
+    qb.orderBy('s.eventDate', 'ASC')
+      .addOrderBy('s.eventTime', 'ASC');
+    
+    const subscribers = await qb.getMany();
+    
+    // Tüm verileri al (filtre uygulanmadan) - toplam istatistik için
+    const allSubscribers = await subscriberRepo
       .createQueryBuilder('s')
       .where('s.confirmationToken IS NOT NULL')
-      .orderBy('s.eventDate', 'ASC')
-      .addOrderBy('s.eventTime', 'ASC')
       .getMany();
     
-    // İstatistikler
+    // İstatistikler (toplam veriden)
     const stats = {
+      total: allSubscribers.length,
+      pending: allSubscribers.filter(s => s.confirmationStatus === 'pending').length,
+      confirmed: allSubscribers.filter(s => s.confirmationStatus === 'confirmed').length,
+      cancelled: allSubscribers.filter(s => s.confirmationStatus === 'cancelled').length,
+      rescheduled: allSubscribers.filter(s => s.confirmationStatus === 'rescheduled').length
+    };
+    
+    // Filtrelenmiş istatistikler
+    const filteredStats = {
       total: subscribers.length,
       pending: subscribers.filter(s => s.confirmationStatus === 'pending').length,
       confirmed: subscribers.filter(s => s.confirmationStatus === 'confirmed').length,
@@ -2203,10 +2248,26 @@ router.get('/confirmations', async (req, res) => {
       rescheduled: subscribers.filter(s => s.confirmationStatus === 'rescheduled').length
     };
     
+    // Mevcut şehirleri getir (filtre dropdown için)
+    const cities = [...new Set(allSubscribers.map(s => s.city).filter(Boolean))].sort();
+    
+    // Mevcut listeleri getir (filtre dropdown için)
+    const listIds = [...new Set(allSubscribers.map(s => s.listId))];
+    const lists = listIds.length > 0 
+      ? await listRepo.createQueryBuilder('l')
+          .where('l.id IN (:...ids)', { ids: listIds })
+          .getMany()
+      : [];
+    
     res.json({
       success: true,
       data: subscribers,
-      stats
+      stats,
+      filteredStats,
+      filters: {
+        cities,
+        lists: lists.map(l => ({ id: l.id, name: l.name, city: l.city }))
+      }
     });
   } catch (error) {
     logger.error('Onay listesi hatası:', error);

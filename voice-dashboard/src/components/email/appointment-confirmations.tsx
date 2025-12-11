@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { getConfirmations, ConfirmationStats } from '@/lib/email-api'
+import { useState, useEffect, useMemo } from 'react'
+import { getConfirmations, ConfirmationStats, ConfirmationFilters, ConfirmationFilterOptions } from '@/lib/email-api'
 import { EmailSubscriber } from '@/types/email'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { 
   Calendar, 
   Clock, 
@@ -19,7 +20,12 @@ import {
   Mail,
   MessageSquare,
   Loader2,
-  CalendarCheck
+  CalendarCheck,
+  Search,
+  Filter,
+  X,
+  ListFilter,
+  ChevronDown
 } from 'lucide-react'
 
 interface AppointmentConfirmationsProps {
@@ -29,15 +35,42 @@ interface AppointmentConfirmationsProps {
 export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmationsProps) {
   const [confirmations, setConfirmations] = useState<EmailSubscriber[]>([])
   const [stats, setStats] = useState<ConfirmationStats | null>(null)
+  const [filteredStats, setFilteredStats] = useState<ConfirmationStats | null>(null)
+  const [filterOptions, setFilterOptions] = useState<ConfirmationFilterOptions | null>(null)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<string>('all')
+  
+  // Filtreler
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [cityFilter, setCityFilter] = useState<string>('')
+  const [listFilter, setListFilter] = useState<number | null>(null)
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [showFilters, setShowFilters] = useState(false)
+  
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('')
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const result = await getConfirmations()
+      
+      const filters: ConfirmationFilters = {}
+      if (listFilter) filters.listId = listFilter
+      if (cityFilter) filters.city = cityFilter
+      if (debouncedSearch) filters.search = debouncedSearch
+      if (statusFilter !== 'all') filters.status = statusFilter
+      
+      const result = await getConfirmations(filters)
       setConfirmations(result.data)
       setStats(result.stats)
+      setFilteredStats(result.filteredStats)
+      setFilterOptions(result.filters)
     } catch (error) {
       console.error('Onay verileri yüklenemedi:', error)
     } finally {
@@ -47,11 +80,16 @@ export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmations
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [statusFilter, cityFilter, listFilter, debouncedSearch])
 
-  const filteredConfirmations = filter === 'all' 
-    ? confirmations 
-    : confirmations.filter(c => c.confirmationStatus === filter)
+  const clearFilters = () => {
+    setStatusFilter('all')
+    setCityFilter('')
+    setListFilter(null)
+    setSearchQuery('')
+  }
+
+  const hasActiveFilters = statusFilter !== 'all' || cityFilter || listFilter || searchQuery
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
@@ -66,7 +104,13 @@ export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmations
     }
   }
 
-  if (loading) {
+  const getListName = (listId: number) => {
+    if (!filterOptions?.lists) return null
+    const list = filterOptions.lists.find(l => l.id === listId)
+    return list?.name || null
+  }
+
+  if (loading && !confirmations.length) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
@@ -91,8 +135,9 @@ export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmations
             variant="outline"
             size="sm"
             onClick={loadData}
+            disabled={loading}
           >
-            <RefreshCw className="h-4 w-4 mr-1" />
+            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
             Yenile
           </Button>
         </div>
@@ -101,59 +146,281 @@ export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmations
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-              <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+            <div 
+              className={`rounded-xl p-4 border cursor-pointer transition-all ${
+                statusFilter === 'all' 
+                  ? 'bg-gray-100 border-gray-400 ring-2 ring-gray-300' 
+                  : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setStatusFilter('all')}
+            >
+              <div className="text-2xl font-bold text-gray-900">
+                {hasActiveFilters ? filteredStats?.total : stats.total}
+              </div>
               <div className="text-sm text-gray-600">Toplam</div>
+              {hasActiveFilters && filteredStats?.total !== stats.total && (
+                <div className="text-xs text-gray-400 mt-1">/ {stats.total}</div>
+              )}
             </div>
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-              <div className="text-2xl font-bold text-blue-700">{stats.pending}</div>
+            <div 
+              className={`rounded-xl p-4 border cursor-pointer transition-all ${
+                statusFilter === 'pending' 
+                  ? 'bg-blue-100 border-blue-400 ring-2 ring-blue-300' 
+                  : 'bg-blue-50 border-blue-200 hover:border-blue-300'
+              }`}
+              onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
+            >
+              <div className="text-2xl font-bold text-blue-700">
+                {hasActiveFilters ? filteredStats?.pending : stats.pending}
+              </div>
               <div className="text-sm text-blue-600">Beklemede</div>
+              {hasActiveFilters && filteredStats?.pending !== stats.pending && (
+                <div className="text-xs text-blue-400 mt-1">/ {stats.pending}</div>
+              )}
             </div>
-            <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-              <div className="text-2xl font-bold text-green-700">{stats.confirmed}</div>
+            <div 
+              className={`rounded-xl p-4 border cursor-pointer transition-all ${
+                statusFilter === 'confirmed' 
+                  ? 'bg-green-100 border-green-400 ring-2 ring-green-300' 
+                  : 'bg-green-50 border-green-200 hover:border-green-300'
+              }`}
+              onClick={() => setStatusFilter(statusFilter === 'confirmed' ? 'all' : 'confirmed')}
+            >
+              <div className="text-2xl font-bold text-green-700">
+                {hasActiveFilters ? filteredStats?.confirmed : stats.confirmed}
+              </div>
               <div className="text-sm text-green-600">Onaylandı</div>
+              {hasActiveFilters && filteredStats?.confirmed !== stats.confirmed && (
+                <div className="text-xs text-green-400 mt-1">/ {stats.confirmed}</div>
+              )}
             </div>
-            <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-              <div className="text-2xl font-bold text-amber-700">{stats.rescheduled}</div>
+            <div 
+              className={`rounded-xl p-4 border cursor-pointer transition-all ${
+                statusFilter === 'rescheduled' 
+                  ? 'bg-amber-100 border-amber-400 ring-2 ring-amber-300' 
+                  : 'bg-amber-50 border-amber-200 hover:border-amber-300'
+              }`}
+              onClick={() => setStatusFilter(statusFilter === 'rescheduled' ? 'all' : 'rescheduled')}
+            >
+              <div className="text-2xl font-bold text-amber-700">
+                {hasActiveFilters ? filteredStats?.rescheduled : stats.rescheduled}
+              </div>
               <div className="text-sm text-amber-600">Değişiklik</div>
+              {hasActiveFilters && filteredStats?.rescheduled !== stats.rescheduled && (
+                <div className="text-xs text-amber-400 mt-1">/ {stats.rescheduled}</div>
+              )}
             </div>
-            <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-              <div className="text-2xl font-bold text-red-700">{stats.cancelled}</div>
+            <div 
+              className={`rounded-xl p-4 border cursor-pointer transition-all ${
+                statusFilter === 'cancelled' 
+                  ? 'bg-red-100 border-red-400 ring-2 ring-red-300' 
+                  : 'bg-red-50 border-red-200 hover:border-red-300'
+              }`}
+              onClick={() => setStatusFilter(statusFilter === 'cancelled' ? 'all' : 'cancelled')}
+            >
+              <div className="text-2xl font-bold text-red-700">
+                {hasActiveFilters ? filteredStats?.cancelled : stats.cancelled}
+              </div>
               <div className="text-sm text-red-600">İptal</div>
+              {hasActiveFilters && filteredStats?.cancelled !== stats.cancelled && (
+                <div className="text-xs text-red-400 mt-1">/ {stats.cancelled}</div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-          {[
-            { value: 'all', label: 'Tümü' },
-            { value: 'pending', label: 'Beklemede' },
-            { value: 'confirmed', label: 'Onaylı' },
-            { value: 'rescheduled', label: 'Değişiklik' },
-            { value: 'cancelled', label: 'İptal' },
-          ].map(f => (
+        {/* Search & Filter Bar */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="İsim, telefon veya email ara..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-10"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            
+            {/* Filter Toggle */}
             <Button
-              key={f.value}
-              variant={filter === f.value ? 'default' : 'outline'}
+              variant={showFilters ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setFilter(f.value)}
-              className={filter === f.value ? 'bg-purple-600 hover:bg-purple-700' : ''}
+              onClick={() => setShowFilters(!showFilters)}
+              className={`gap-2 ${showFilters ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
             >
-              {f.label}
+              <Filter className="h-4 w-4" />
+              Filtreler
+              {hasActiveFilters && !showFilters && (
+                <Badge className="bg-purple-100 text-purple-700 ml-1">
+                  {[statusFilter !== 'all', cityFilter, listFilter, searchQuery].filter(Boolean).length}
+                </Badge>
+              )}
+              <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </Button>
-          ))}
+            
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Temizle
+              </Button>
+            )}
+          </div>
+          
+          {/* Expanded Filters */}
+          {showFilters && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              {/* City Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <MapPin className="h-3.5 w-3.5 inline mr-1" />
+                  Şehir
+                </label>
+                <select
+                  value={cityFilter}
+                  onChange={(e) => setCityFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  <option value="">Tüm şehirler</option>
+                  {filterOptions?.cities.map(city => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* List Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <ListFilter className="h-3.5 w-3.5 inline mr-1" />
+                  Liste
+                </label>
+                <select
+                  value={listFilter || ''}
+                  onChange={(e) => setListFilter(e.target.value ? parseInt(e.target.value) : null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  <option value="">Tüm listeler</option>
+                  {filterOptions?.lists.map(list => (
+                    <option key={list.id} value={list.id}>
+                      {list.name} {list.city && `(${list.city})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Status Filter - Visual */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 inline mr-1" />
+                  Durum
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  <option value="all">Tüm durumlar</option>
+                  <option value="pending">Beklemede</option>
+                  <option value="confirmed">Onaylandı</option>
+                  <option value="rescheduled">Değişiklik</option>
+                  <option value="cancelled">İptal</option>
+                </select>
+              </div>
+            </div>
+          )}
+          
+          {/* Active Filters Pills */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap gap-2">
+              {statusFilter !== 'all' && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer hover:bg-gray-200"
+                  onClick={() => setStatusFilter('all')}
+                >
+                  Durum: {statusFilter === 'pending' ? 'Beklemede' : statusFilter === 'confirmed' ? 'Onaylandı' : statusFilter === 'rescheduled' ? 'Değişiklik' : 'İptal'}
+                  <X className="h-3 w-3" />
+                </Badge>
+              )}
+              {cityFilter && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer hover:bg-gray-200"
+                  onClick={() => setCityFilter('')}
+                >
+                  Şehir: {cityFilter}
+                  <X className="h-3 w-3" />
+                </Badge>
+              )}
+              {listFilter && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer hover:bg-gray-200"
+                  onClick={() => setListFilter(null)}
+                >
+                  Liste: {getListName(listFilter) || `#${listFilter}`}
+                  <X className="h-3 w-3" />
+                </Badge>
+              )}
+              {searchQuery && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer hover:bg-gray-200"
+                  onClick={() => setSearchQuery('')}
+                >
+                  Arama: "{searchQuery}"
+                  <X className="h-3 w-3" />
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Results Count */}
+        {hasActiveFilters && (
+          <div className="text-sm text-gray-500">
+            {confirmations.length} sonuç gösteriliyor
+            {stats && ` (toplam ${stats.total})`}
+          </div>
+        )}
 
         {/* List */}
         <div className="space-y-3">
-          {filteredConfirmations.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+            </div>
+          ) : confirmations.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Henüz randevu onayı yok</p>
+              <p>{hasActiveFilters ? 'Filtrelere uygun sonuç bulunamadı' : 'Henüz randevu onayı yok'}</p>
+              {hasActiveFilters && (
+                <Button
+                  variant="link"
+                  onClick={clearFilters}
+                  className="mt-2 text-purple-600"
+                >
+                  Filtreleri temizle
+                </Button>
+              )}
             </div>
           ) : (
-            filteredConfirmations.map(confirmation => (
+            confirmations.map(confirmation => (
               <div 
                 key={confirmation.id}
                 className="bg-white rounded-xl p-4 border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
@@ -161,12 +428,17 @@ export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmations
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
                   {/* Info */}
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <User className="h-4 w-4 text-gray-500" />
                       <span className="font-semibold text-gray-900">
                         {confirmation.fullName || confirmation.firstName || 'Bilinmiyor'}
                       </span>
                       {getStatusBadge(confirmation.confirmationStatus)}
+                      {getListName(confirmation.listId) && (
+                        <Badge variant="outline" className="text-xs">
+                          {getListName(confirmation.listId)}
+                        </Badge>
+                      )}
                     </div>
                     
                     <div className="flex flex-wrap gap-4 text-sm text-gray-700">
