@@ -172,18 +172,66 @@ try {
   logger.error('.env dosyası okunamadı:', { message: err.message });
 }
 
-// Koşullu Twilio istemcisi oluştur
+// ==================== MULTI-TWILIO CLIENT DESTEĞİ ====================
+// Poland ve UK için ayrı Twilio hesapları
+
+// Twilio yapılandırmaları (region bazlı)
+const TWILIO_CONFIGS = {
+  poland: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID,
+    authToken: process.env.TWILIO_AUTH_TOKEN,
+    phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+    flowSid: process.env.TWILIO_FLOW_SID
+  },
+  uk: {
+    accountSid: process.env.TWILIO_UK_ACCOUNT_SID,
+    authToken: process.env.TWILIO_UK_AUTH_TOKEN,
+    phoneNumber: process.env.TWILIO_UK_PHONE_NUMBER,
+    flowSid: process.env.TWILIO_UK_FLOW_SID
+  }
+};
+
+// Twilio client'ları (lazy initialization)
+const twilioClients = {};
+
+// Region'a göre Twilio client al
+function getTwilioClient(region = 'poland') {
+  const config = TWILIO_CONFIGS[region];
+  if (!config || !config.accountSid || !config.authToken) {
+    logger.warn(`Twilio config bulunamadı: ${region}`);
+    return null;
+  }
+  
+  // Cache'den al veya oluştur
+  if (!twilioClients[region]) {
+    twilioClients[region] = twilio(config.accountSid, config.authToken);
+    logger.info(`✅ Twilio client oluşturuldu: ${region}`);
+  }
+  
+  return twilioClients[region];
+}
+
+// Region'a göre Twilio config al
+function getTwilioConfig(region = 'poland') {
+  return TWILIO_CONFIGS[region] || TWILIO_CONFIGS.poland;
+}
+
+// Default Twilio client (geriye uyumluluk için)
 let twilioClient = null;
 try {
   logger.info('Twilio kimlik bilgileri kontrol ediliyor...');
-  logger.info(`TWILIO_ACCOUNT_SID: ${process.env.TWILIO_ACCOUNT_SID ? 'Tanımlı' : 'Tanımlı değil'}`);
-  logger.info(`TWILIO_AUTH_TOKEN: ${process.env.TWILIO_AUTH_TOKEN ? 'Tanımlı' : 'Tanımlı değil'}`);
-  logger.info(`TWILIO_PHONE_NUMBER: ${process.env.TWILIO_PHONE_NUMBER ? 'Tanımlı' : 'Tanımlı değil'}`);
-  logger.info(`TWILIO_FLOW_SID: ${process.env.TWILIO_FLOW_SID ? 'Tanımlı' : 'Tanımlı değil'}`);
+  logger.info(`TWILIO_ACCOUNT_SID (Poland): ${process.env.TWILIO_ACCOUNT_SID ? 'Tanımlı' : 'Tanımlı değil'}`);
+  logger.info(`TWILIO_AUTH_TOKEN (Poland): ${process.env.TWILIO_AUTH_TOKEN ? 'Tanımlı' : 'Tanımlı değil'}`);
+  logger.info(`TWILIO_PHONE_NUMBER (Poland): ${process.env.TWILIO_PHONE_NUMBER ? 'Tanımlı' : 'Tanımlı değil'}`);
+  logger.info(`TWILIO_FLOW_SID (Poland): ${process.env.TWILIO_FLOW_SID ? 'Tanımlı' : 'Tanımlı değil'}`);
+  logger.info(`TWILIO_UK_ACCOUNT_SID (UK): ${process.env.TWILIO_UK_ACCOUNT_SID ? 'Tanımlı' : 'Tanımlı değil'}`);
+  logger.info(`TWILIO_UK_AUTH_TOKEN (UK): ${process.env.TWILIO_UK_AUTH_TOKEN ? 'Tanımlı' : 'Tanımlı değil'}`);
+  logger.info(`TWILIO_UK_PHONE_NUMBER (UK): ${process.env.TWILIO_UK_PHONE_NUMBER ? 'Tanımlı' : 'Tanımlı değil'}`);
+  logger.info(`TWILIO_UK_FLOW_SID (UK): ${process.env.TWILIO_UK_FLOW_SID ? 'Tanımlı' : 'Tanımlı değil'}`);
   
   if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
     twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-    logger.info('Twilio istemcisi başarıyla oluşturuldu');
+    logger.info('Twilio istemcisi başarıyla oluşturuldu (Poland - default)');
   } else {
     logger.warn('Twilio kimlik bilgileri bulunamadı, Twilio istemcisi olmadan devam ediliyor');
   }
@@ -477,6 +525,24 @@ router.post('/start-bulk-from-list', async (req, res) => {
       return res.status(404).json({ error: 'Listeler bulunamadı' });
     }
     
+    // Listelerin twilioRegion'ını kontrol et (tümü aynı olmalı)
+    const twilioRegion = lists[0].twilioRegion || 'poland';
+    const mixedRegions = lists.some(l => (l.twilioRegion || 'poland') !== twilioRegion);
+    if (mixedRegions) {
+      return res.status(400).json({ 
+        error: 'Farklı Twilio bölgelerindeki listeler birlikte aranamaz. Lütfen aynı bölgedeki listeleri seçin.' 
+      });
+    }
+    
+    // Region için Twilio client kontrolü
+    const regionClient = getTwilioClient(twilioRegion);
+    const regionConfig = getTwilioConfig(twilioRegion);
+    if (!regionClient || !regionConfig.flowSid) {
+      return res.status(400).json({ 
+        error: `${twilioRegion.toUpperCase()} bölgesi için Twilio yapılandırması eksik` 
+      });
+    }
+    
     // Listelerden aktif aboneleri al (telefon numarası olanlar)
     const subscribers = await subscriberRepo.find({
       where: listIds.map(id => ({ listId: parseInt(id), status: 'active' }))
@@ -509,18 +575,20 @@ router.post('/start-bulk-from-list', async (req, res) => {
       totalNumbers: phoneNumbers.length,
       phoneNumbers: JSON.stringify(phoneNumbers),
       results: '[]',
-      errors: '[]'
+      errors: '[]',
+      twilioRegion: twilioRegion // Hangi Twilio hesabı kullanılacak
     });
     await queueRepo.save(queue);
     
-    logger.info(`📞 Toplu arama kuyruğu oluşturuldu: ${queue.id} - ${phoneNumbers.length} numara`);
+    logger.info(`📞 Toplu arama kuyruğu oluşturuldu: ${queue.id} - ${phoneNumbers.length} numara - Region: ${twilioRegion}`);
     
     res.json({
       success: true,
-      message: `${phoneNumbers.length} numaralı arama kuyruğu oluşturuldu`,
+      message: `${phoneNumbers.length} numaralı arama kuyruğu oluşturuldu (${twilioRegion.toUpperCase()})`,
       queueId: queue.id,
       totalNumbers: phoneNumbers.length,
-      lists: lists.map(l => ({ id: l.id, name: l.name }))
+      twilioRegion: twilioRegion,
+      lists: lists.map(l => ({ id: l.id, name: l.name, twilioRegion: l.twilioRegion || 'poland' }))
     });
     
   } catch (error) {
@@ -537,10 +605,6 @@ router.post('/queue/:id/start', async (req, res) => {
       return res.status(503).json({ error: 'Database not available' });
     }
     
-    if (!twilioClient) {
-      throw new Error('Twilio istemcisi başlatılmadı');
-    }
-    
     const { CallQueue } = require('../models/CallQueue');
     const queueRepo = AppDataSource.getRepository(CallQueue);
     
@@ -548,6 +612,23 @@ router.post('/queue/:id/start', async (req, res) => {
     
     if (!queue) {
       return res.status(404).json({ error: 'Kuyruk bulunamadı' });
+    }
+    
+    // Kuyrukta kayıtlı twilioRegion'a göre client ve config al
+    const twilioRegion = queue.twilioRegion || 'poland';
+    const regionClient = getTwilioClient(twilioRegion);
+    const regionConfig = getTwilioConfig(twilioRegion);
+    
+    if (!regionClient) {
+      return res.status(400).json({ 
+        error: `${twilioRegion.toUpperCase()} bölgesi için Twilio istemcisi başlatılamadı` 
+      });
+    }
+    
+    if (!regionConfig.flowSid) {
+      return res.status(400).json({ 
+        error: `${twilioRegion.toUpperCase()} bölgesi için FLOW_SID tanımlanmamış` 
+      });
     }
     
     // Sadece pending veya paused durumundaki kuyruklar başlatılabilir
@@ -625,6 +706,8 @@ router.post('/queue/:id/start', async (req, res) => {
     const batchResults = [];
     const batchErrors = [];
     
+    logger.info(`📞 ${twilioRegion.toUpperCase()} Twilio hesabı ile arama yapılıyor...`);
+    
     for (let i = 0; i < batch.length; i++) {
       const phoneNumber = batch[i];
       
@@ -634,20 +717,21 @@ router.post('/queue/:id/start', async (req, res) => {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
-        const execution = await twilioClient.studio.v2.flows(process.env.TWILIO_FLOW_SID)
+        // Region'a göre doğru Twilio client ve config kullan
+        const execution = await regionClient.studio.v2.flows(regionConfig.flowSid)
           .executions
           .create({
             to: phoneNumber,
-            from: process.env.TWILIO_PHONE_NUMBER,
+            from: regionConfig.phoneNumber,
             parameters: flowParameters
           });
         
-        logger.info(`✅ Arama başlatıldı: ${phoneNumber} (${execution.sid})`);
-        batchResults.push({ to: phoneNumber, executionSid: execution.sid, time: new Date().toISOString() });
+        logger.info(`✅ [${twilioRegion.toUpperCase()}] Arama başlatıldı: ${phoneNumber} (${execution.sid})`);
+        batchResults.push({ to: phoneNumber, executionSid: execution.sid, time: new Date().toISOString(), region: twilioRegion });
         
       } catch (err) {
-        logger.error(`❌ Arama hatası: ${phoneNumber} - ${err.message}`);
-        batchErrors.push({ to: phoneNumber, error: err.message, code: err.code, time: new Date().toISOString() });
+        logger.error(`❌ [${twilioRegion.toUpperCase()}] Arama hatası: ${phoneNumber} - ${err.message}`);
+        batchErrors.push({ to: phoneNumber, error: err.message, code: err.code, time: new Date().toISOString(), region: twilioRegion });
       }
     }
     

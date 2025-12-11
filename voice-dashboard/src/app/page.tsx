@@ -645,7 +645,16 @@ export default function DashboardPage() {
                                 className="h-4 w-4 text-purple-600 rounded"
                               />
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm truncate">{list.name}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-sm truncate">{list.name}</p>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                    (list as any).twilioRegion === 'uk' 
+                                      ? 'bg-blue-100 text-blue-700' 
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {(list as any).twilioRegion === 'uk' ? '🇬🇧' : '🇵🇱'}
+                                  </span>
+                                </div>
                                 <p className="text-xs text-gray-500">
                                   {list.city && `📍 ${list.city} • `}
                                   👥 {list.subscriberCount} abone

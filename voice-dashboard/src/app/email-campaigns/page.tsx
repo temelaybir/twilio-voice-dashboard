@@ -665,6 +665,7 @@ Başarısız: ${stats.failed}
                 eventDay2: eventDay2,
                 eventDates: `${eventDay1} - ${eventDay2}`, // Geriye uyumluluk
                 location: formData.get('location') as string,
+                twilioRegion: formData.get('twilioRegion') as 'poland' | 'uk',
               })
             }}>
               <div className="space-y-4">
@@ -764,6 +765,36 @@ Başarısız: ${stats.failed}
                     rows={2}
                     placeholder="Liste açıklaması..."
                   />
+                </div>
+                
+                {/* Twilio Region Seçimi */}
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <label className="block text-sm font-medium mb-2 text-blue-900">
+                    📞 Twilio Bölgesi (Toplu Arama İçin)
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="twilioRegion"
+                        value="poland"
+                        defaultChecked={(editingList as any)?.twilioRegion !== 'uk'}
+                        className="h-4 w-4 text-blue-600"
+                      />
+                      <span className="text-sm">🇵🇱 Poland</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="twilioRegion"
+                        value="uk"
+                        defaultChecked={(editingList as any)?.twilioRegion === 'uk'}
+                        className="h-4 w-4 text-blue-600"
+                      />
+                      <span className="text-sm">🇬🇧 UK</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-blue-700 mt-1">Bu liste üzerinden toplu arama yaparken kullanılacak Twilio hesabı</p>
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-6">

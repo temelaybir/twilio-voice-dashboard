@@ -77,6 +77,12 @@ const CallQueue = new EntitySchema({
       type: 'datetime',
       nullable: true
     },
+    // Twilio bölgesi: 'poland' veya 'uk'
+    twilioRegion: {
+      type: 'varchar',
+      length: 50,
+      default: 'poland'
+    },
     createdAt: {
       type: 'datetime',
       createDate: true

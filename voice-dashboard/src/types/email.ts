@@ -26,6 +26,7 @@ export interface EmailList {
   timeSlots?: string // JSON string
   subscriberCount: number
   isActive: boolean
+  twilioRegion?: 'poland' | 'uk' // Hangi Twilio hesabı kullanılacak
   createdAt: string
   updatedAt: string
 }
@@ -166,6 +167,7 @@ export interface ListFormData {
   eventDay2?: string // 2. Gün
   location?: string
   timeSlots?: string[]
+  twilioRegion?: 'poland' | 'uk' // Hangi Twilio hesabı kullanılacak
 }
 
 export interface SubscriberFormData {

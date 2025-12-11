@@ -69,6 +69,12 @@ const EmailList = new EntitySchema({
       type: 'boolean',
       default: true
     },
+    // Twilio bölgesi: 'poland' veya 'uk' (hangi Twilio hesabı kullanılacak)
+    twilioRegion: {
+      type: 'varchar',
+      length: 50,
+      default: 'poland'
+    },
     createdAt: {
       type: 'datetime',
       createDate: true
