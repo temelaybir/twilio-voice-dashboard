@@ -399,11 +399,14 @@ app.get('/api/health', async (req, res) => {
     // Eğer initialize edilmemişse dene
     if (AppDataSource && !AppDataSource.isInitialized) {
       try {
-        const success = await initializeDatabase();
-        dbStatus.initAttempt = success ? 'success' : 'failed';
+        await AppDataSource.initialize();
+        dbStatus.initAttempt = 'success';
+        dbStatus.isInitialized = true;
       } catch (initError) {
         dbStatus.initAttempt = 'error';
         dbStatus.initError = initError.message;
+        dbStatus.initErrorCode = initError.code;
+        dbStatus.initErrorStack = initError.stack?.split('\n').slice(0, 5);
       }
     }
     
