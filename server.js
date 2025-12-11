@@ -381,6 +381,46 @@ app.post('/api/daily-email', async (req, res) => {
   }
 });
 
+// Health check endpoint - debug için
+app.get('/api/health', async (req, res) => {
+  try {
+    const { AppDataSource, initializeDatabase } = require('./config/database');
+    
+    const dbStatus = {
+      hasAppDataSource: !!AppDataSource,
+      isInitialized: AppDataSource?.isInitialized || false,
+      dbHost: process.env.DB_HOST ? 'set' : 'not set',
+      dbUser: process.env.DB_USER ? 'set' : 'not set',
+      dbName: process.env.DB_NAME ? 'set' : 'not set',
+      dbPassword: process.env.DB_PASSWORD ? 'set' : 'not set',
+      nodeEnv: process.env.NODE_ENV || 'not set'
+    };
+    
+    // Eğer initialize edilmemişse dene
+    if (AppDataSource && !AppDataSource.isInitialized) {
+      try {
+        const success = await initializeDatabase();
+        dbStatus.initAttempt = success ? 'success' : 'failed';
+      } catch (initError) {
+        dbStatus.initAttempt = 'error';
+        dbStatus.initError = initError.message;
+      }
+    }
+    
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: dbStatus
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error', 
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // Test email endpoint (sadece TEST_EMAIL_SCHEDULER=true ise - backward compatibility)
 app.post('/api/test-email', async (req, res) => {
   // Endpoint aktif mi kontrol et
