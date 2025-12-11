@@ -1374,6 +1374,10 @@ router.post('/campaigns/:id/send', async (req, res) => {
         // Confirm URL oluştur
         const baseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
         const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}`;
+        // Old list için tarih seçimli onay sayfası
+        const confirmSelectUrl = `${baseUrl}/api/email/confirm-select/${subscriber.confirmationToken}`;
+        // Next Event URL (old list için - doğrudan next_event action'ına yönlendirir)
+        const nextEventUrl = `${baseUrl}/api/email/next-event/${subscriber.confirmationToken}`;
         
         // Liste bilgilerini al
         const subscriberList = await listRepo.findOne({ where: { id: subscriber.listId } });
@@ -1393,6 +1397,8 @@ router.post('/campaigns/:id/send', async (req, res) => {
           eventTime: subscriber.eventTime || '',
           unsubscribeUrl,
           confirmUrl,
+          confirmSelectUrl,
+          nextEventUrl,
           // Liste bazlı değişkenler
           listCity: subscriberList?.city || '',
           listCityDisplay: subscriberList?.cityDisplay || subscriberList?.city || '',
@@ -1642,6 +1648,10 @@ router.post('/campaigns/:id/resume', async (req, res) => {
         
         const baseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
         const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}`;
+        // Old list için tarih seçimli onay sayfası
+        const confirmSelectUrl = `${baseUrl}/api/email/confirm-select/${subscriber.confirmationToken}`;
+        // Next Event URL (old list için)
+        const nextEventUrl = `${baseUrl}/api/email/next-event/${subscriber.confirmationToken}`;
         
         const subscriberList = await listRepo.findOne({ where: { id: subscriber.listId } });
         
@@ -1659,6 +1669,8 @@ router.post('/campaigns/:id/resume', async (req, res) => {
           eventTime: subscriber.eventTime || '',
           unsubscribeUrl,
           confirmUrl,
+          confirmSelectUrl,
+          nextEventUrl,
           listCity: subscriberList?.city || '',
           listCityDisplay: subscriberList?.cityDisplay || subscriberList?.city || '',
           listEventDates: subscriberList?.eventDates || '',
@@ -2104,6 +2116,10 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
       subscriber.confirmationStatus = 'confirmed';
     } else if (action === 'cancel') {
       subscriber.confirmationStatus = 'cancelled';
+    } else if (action === 'next_event') {
+      // Old list için "Następne wydarzenie" butonu - rescheduled olarak işaretle
+      subscriber.confirmationStatus = 'rescheduled';
+      subscriber.confirmationNote = 'NEXT_EVENT' + (note ? ': ' + note : '');
     } else if (action === 'reschedule') {
       subscriber.confirmationStatus = 'rescheduled';
       // Yeni gün ve saat seçimini kaydet
@@ -2119,7 +2135,7 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
     }
     
     subscriber.confirmedAt = new Date();
-    if (action !== 'reschedule') {
+    if (action !== 'reschedule' && action !== 'next_event') {
       subscriber.confirmationNote = note || null;
     }
     
@@ -2138,7 +2154,8 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
     const statusMessages = {
       confirm: { icon: '✅', title: 'Wizyta potwierdzona!', text: 'Dziękujemy za potwierdzenie. Do zobaczenia!' },
       cancel: { icon: '❌', title: 'Wizyta anulowana', text: 'Twoja wizyta została anulowana. Skontaktuj się z nami, jeśli chcesz umówić nowy termin.' },
-      reschedule: { icon: '📅', title: 'Zmiana terminu zapisana!', text: `${newTerminText} Skontaktujemy się z Tobą wkrótce.` }
+      reschedule: { icon: '📅', title: 'Zmiana terminu zapisana!', text: `${newTerminText} Skontaktujemy się z Tobą wkrótce.` },
+      next_event: { icon: '📆', title: 'Zapisano na następne wydarzenie!', text: 'Dziękujemy! Skontaktujemy się z Tobą przed następnym wydarzeniem w Twoim mieście.' }
     };
     
     const msg = statusMessages[action] || statusMessages.confirm;
@@ -2171,6 +2188,350 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
     `);
   } catch (error) {
     logger.error('Randevu onay işlemi hatası:', error);
+    res.status(500).send('Bir hata oluştu');
+  }
+});
+
+// GET /api/email/confirm-select/:token - Old list için tarih seçimli onay sayfası
+router.get('/confirm-select/:token', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).send('Servis geçici olarak kullanılamıyor');
+    }
+    
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { EmailList } = require('../models/EmailList');
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const listRepo = AppDataSource.getRepository(EmailList);
+    
+    const subscriber = await subscriberRepo.findOne({ 
+      where: { confirmationToken: req.params.token } 
+    });
+    
+    if (!subscriber) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html lang="pl">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Link wygasł</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
+            h2 { color: #f59e0b; margin-bottom: 16px; }
+            p { color: #9ca3af; line-height: 1.6; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>⚠️ Link wygasł lub jest nieprawidłowy</h2>
+            <p>Ten link jest nieprawidłowy lub już został użyty. Jeśli potrzebujesz pomocy, skontaktuj się z nami.</p>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+    
+    const list = await listRepo.findOne({ where: { id: subscriber.listId } });
+    const timeSlots = list?.timeSlots ? JSON.parse(list.timeSlots) : ['09:00-12:30', '12:30-15:00', '15:00-17:30'];
+    
+    // Tarih seçim sayfası göster
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="pl">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Wybierz termin - Happy Smile Clinics</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
+          .card { background: #020617; border-radius: 16px; padding: 32px; max-width: 520px; width: 100%; border: 1px solid rgba(148,163,184,0.25); }
+          .logo { height: 40px; margin-bottom: 16px; }
+          h1 { font-size: 22px; color: #f9fafb; margin: 0 0 8px; }
+          h2 { font-size: 13px; color: #22c55e; text-transform: uppercase; letter-spacing: 0.15em; margin: 0 0 20px; font-weight: 500; }
+          .details { background: rgba(15,23,42,0.9); border: 1px solid rgba(148,163,184,0.3); border-radius: 12px; padding: 16px; margin: 20px 0; }
+          .detail-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid rgba(148,163,184,0.1); }
+          .detail-row:last-child { border-bottom: none; }
+          .label { font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; }
+          .value { font-size: 15px; color: #e5e7eb; text-align: right; }
+          .time-slots { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+          .time-slot { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: rgba(15,23,42,0.9); border: 1px solid rgba(148,163,184,0.3); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+          .time-slot:hover { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+          .time-slot.selected { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+          .time-slot input[type="radio"] { width: 18px; height: 18px; accent-color: #22c55e; }
+          .time-slot label { flex: 1; cursor: pointer; font-size: 15px; color: #e5e7eb; }
+          .btn { width: 100%; padding: 16px 20px; border: none; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.08em; transition: all 0.2s; margin-top: 20px; background: linear-gradient(135deg, #22c55e, #2dd4bf); color: #020617; }
+          .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(34,197,94,0.3); }
+          .info { font-size: 12px; color: #9ca3af; margin-top: 20px; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
+          
+          <h2>✓ Potwierdź udział</h2>
+          <h1>Wybierz termin wizyty</h1>
+          
+          <p style="color: #9ca3af; margin-bottom: 20px;">
+            Witamy ponownie <strong style="color: #e5e7eb;">${subscriber.fullName || subscriber.firstName || 'Pacjent'}</strong>! 
+            Proszę wybrać preferowany dzień i godzinę wizyty.
+          </p>
+          
+          <div class="details">
+            <div class="detail-row">
+              <span class="label">📍 Lokalizacja</span>
+              <span class="value">${list?.cityDisplay || list?.city || subscriber.city || 'Happy Smile'}</span>
+            </div>
+            ${list?.location ? `
+            <div class="detail-row">
+              <span class="label">🏨 Adres</span>
+              <span class="value" style="font-size: 12px; max-width: 200px;">${list.location}</span>
+            </div>
+            ` : ''}
+          </div>
+          
+          <form method="POST" action="/api/email/confirm-select/${req.params.token}">
+            <!-- Gün Seçimi -->
+            <div class="label" style="margin-bottom: 12px;">📅 Wybierz dzień:</div>
+            <div class="time-slots">
+              ${list?.eventDay1 ? `
+                <div class="time-slot">
+                  <input type="radio" name="newDate" id="day1" value="${list.eventDay1}" required checked>
+                  <label for="day1">${list.eventDay1}</label>
+                </div>
+              ` : ''}
+              ${list?.eventDay2 ? `
+                <div class="time-slot">
+                  <input type="radio" name="newDate" id="day2" value="${list.eventDay2}" required>
+                  <label for="day2">${list.eventDay2}</label>
+                </div>
+              ` : ''}
+              ${!list?.eventDay1 && !list?.eventDay2 ? `
+                <div style="color: #9ca3af; font-size: 14px; padding: 12px;">Skontaktuj się z nami, aby poznać dostępne terminy.</div>
+              ` : ''}
+            </div>
+            
+            <!-- Saat Seçimi -->
+            <div class="label" style="margin: 20px 0 12px;">🕐 Wybierz godzinę:</div>
+            <div class="time-slots">
+              ${timeSlots.map((slot, index) => `
+                <div class="time-slot">
+                  <input type="radio" name="newTimeSlot" id="slot${index}" value="${slot}" required ${index === 0 ? 'checked' : ''}>
+                  <label for="slot${index}">${slot}</label>
+                </div>
+              `).join('')}
+            </div>
+            
+            <button type="submit" class="btn">✓ Potwierdzam udział</button>
+          </form>
+          
+          <p class="info">
+            Masz pytania? Napisz do nas na WhatsApp lub odpowiedz na ostatni e-mail.
+          </p>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    logger.error('Confirm Select sayfa hatası:', error);
+    res.status(500).send('Bir hata oluştu');
+  }
+});
+
+// POST /api/email/confirm-select/:token - Old list için tarih seçimli onay işlemi
+router.post('/confirm-select/:token', express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).send('Servis geçici olarak kullanılamıyor');
+    }
+    
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { EmailList } = require('../models/EmailList');
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const listRepo = AppDataSource.getRepository(EmailList);
+    
+    const subscriber = await subscriberRepo.findOne({ 
+      where: { confirmationToken: req.params.token } 
+    });
+    
+    if (!subscriber) {
+      return res.redirect(`/api/email/confirm-select/${req.params.token}`);
+    }
+    
+    const { newDate, newTimeSlot } = req.body;
+    
+    // Onay kaydı
+    subscriber.confirmationStatus = 'confirmed';
+    subscriber.eventDate = newDate || subscriber.eventDate;
+    subscriber.eventTime = newTimeSlot || subscriber.eventTime;
+    subscriber.confirmedAt = new Date();
+    subscriber.confirmationNote = `Wybrano: ${newDate || '-'} o ${newTimeSlot || '-'}`;
+    
+    await subscriberRepo.save(subscriber);
+    
+    const list = await listRepo.findOne({ where: { id: subscriber.listId } });
+    
+    logger.info(`✅ Old List Confirm: ${subscriber.fullName || subscriber.email} - ${newDate} @ ${newTimeSlot}`);
+    
+    // Başarı sayfası
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="pl">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Wizyta potwierdzona! - Happy Smile Clinics</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
+          .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
+          .logo { height: 40px; margin-bottom: 24px; }
+          .icon { font-size: 48px; margin-bottom: 16px; }
+          h2 { color: #22c55e; margin-bottom: 16px; }
+          p { color: #9ca3af; line-height: 1.6; }
+          .details { margin-top: 24px; padding: 20px; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); border-radius: 12px; text-align: left; }
+          .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(34,197,94,0.2); }
+          .detail-row:last-child { border-bottom: none; }
+          .label { font-size: 12px; color: #9ca3af; text-transform: uppercase; }
+          .value { font-size: 14px; color: #22c55e; font-weight: 600; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
+          <div class="icon">✅</div>
+          <h2>Wizyta potwierdzona!</h2>
+          <p>Dziękujemy za potwierdzenie! Do zobaczenia na spotkaniu.</p>
+          
+          <div class="details">
+            <div class="detail-row">
+              <span class="label">📅 Data</span>
+              <span class="value">${newDate || '-'}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">🕐 Godzina</span>
+              <span class="value">${newTimeSlot || '-'}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">📍 Miejsce</span>
+              <span class="value">${list?.cityDisplay || list?.city || subscriber.city || '-'}</span>
+            </div>
+            ${list?.location ? `
+            <div class="detail-row">
+              <span class="label">🏨 Adres</span>
+              <span class="value" style="font-size: 12px;">${list.location}</span>
+            </div>
+            ` : ''}
+          </div>
+          
+          <p style="margin-top: 24px; font-size: 13px;">
+            Masz pytania? Napisz do nas na WhatsApp lub odpowiedz na ostatni e-mail.
+          </p>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    logger.error('Confirm Select işlem hatası:', error);
+    res.status(500).send('Bir hata oluştu');
+  }
+});
+
+// GET /api/email/next-event/:token - Old list için "Następne wydarzenie" (Next Event) sayfası
+router.get('/next-event/:token', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).send('Servis geçici olarak kullanılamıyor');
+    }
+    
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const { EmailList } = require('../models/EmailList');
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    const listRepo = AppDataSource.getRepository(EmailList);
+    
+    const subscriber = await subscriberRepo.findOne({ 
+      where: { confirmationToken: req.params.token } 
+    });
+    
+    if (!subscriber) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html lang="pl">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Link wygasł</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
+            h2 { color: #f59e0b; margin-bottom: 16px; }
+            p { color: #9ca3af; line-height: 1.6; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>⚠️ Link wygasł lub jest nieprawidłowy</h2>
+            <p>Ten link jest nieprawidłowy lub już został użyty. Jeśli potrzebujesz pomocy, skontaktuj się z nami.</p>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+    
+    // "NEXT_EVENT" olarak işaretle ve kaydet
+    subscriber.confirmationStatus = 'rescheduled';
+    subscriber.confirmationNote = 'NEXT_EVENT';
+    subscriber.confirmedAt = new Date();
+    await subscriberRepo.save(subscriber);
+    
+    const list = await listRepo.findOne({ where: { id: subscriber.listId } });
+    
+    logger.info(`📆 Next Event: ${subscriber.fullName || subscriber.email} - ${list?.city || 'Unknown'}`);
+    
+    // Başarı sayfası göster
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="pl">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Zapisano na następne wydarzenie - Happy Smile Clinics</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
+          .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
+          .logo { height: 40px; margin-bottom: 24px; }
+          .icon { font-size: 48px; margin-bottom: 16px; }
+          h2 { color: #f59e0b; margin-bottom: 16px; }
+          p { color: #9ca3af; line-height: 1.6; }
+          .info { margin-top: 20px; padding: 16px; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 12px; }
+          .info-label { font-size: 12px; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+          .info-value { font-size: 16px; color: #e5e7eb; font-weight: 600; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
+          <div class="icon">📆</div>
+          <h2>Zapisano na następne wydarzenie!</h2>
+          <p>Dziękujemy za zainteresowanie! Skontaktujemy się z Tobą przed następnym wydarzeniem w Twoim mieście.</p>
+          
+          <div class="info">
+            <div class="info-label">📍 Twoje miasto</div>
+            <div class="info-value">${list?.cityDisplay || list?.city || subscriber.city || 'Twoje miasto'}</div>
+          </div>
+          
+          <p style="margin-top: 24px; font-size: 13px;">
+            Masz pytania? Napisz do nas na WhatsApp lub odpowiedz na ostatni e-mail.
+          </p>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    logger.error('Next Event hatası:', error);
     res.status(500).send('Bir hata oluştu');
   }
 });
