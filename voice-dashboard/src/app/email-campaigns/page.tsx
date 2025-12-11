@@ -53,7 +53,6 @@ import {
   createCampaign,
   updateCampaign,
   deleteCampaign,
-  sendCampaign,
   getCampaignStats,
   sendTestEmail
 } from '@/lib/email-api'
@@ -341,11 +340,26 @@ export default function EmailCampaignsPage() {
   const handleSendCampaign = async (campaign: EmailCampaign) => {
     if (!confirm(`"${campaign.name}" kampanyasını göndermek istediğinize emin misiniz?`)) return
     try {
-      const result = await sendCampaign(campaign.id)
-      setMessage(`✅ ${result.message} - ${result.totalRecipients} alıcıya gönderiliyor`)
+      const { sendCampaignWithAutoContinue } = await import('@/lib/email-api')
+      
+      // Progress mesajları göster
+      setMessage(`🚀 "${campaign.name}" kampanyası başlatılıyor...`)
+      
+      const result = await sendCampaignWithAutoContinue(campaign.id, (progress) => {
+        // Her batch sonrası progress güncelle
+        setMessage(`📧 Gönderiliyor: ${progress.sentCount}/${progress.totalRecipients} (${progress.remaining} kaldı)`)
+        loadData() // Listeyi güncelle
+      })
+      
+      if (result.completed) {
+        setMessage(`✅ Kampanya tamamlandı: ${result.sentCount} email gönderildi`)
+      } else {
+        setMessage(`⏸️ Kampanya duraklatıldı: ${result.sentCount}/${result.totalRecipients} gönderildi`)
+      }
       loadData()
     } catch (error: any) {
       setMessage(`❌ Hata: ${error.message}`)
+      loadData()
     }
   }
 
@@ -362,12 +376,24 @@ export default function EmailCampaignsPage() {
 
   const handleResumeCampaign = async (campaign: EmailCampaign) => {
     try {
-      const { resumeCampaign } = await import('@/lib/email-api')
-      const result = await resumeCampaign(campaign.id)
-      setMessage(`▶️ "${campaign.name}" devam ediyor - ${result.totalSent} gönderildi, ${result.remaining} kaldı`)
+      const { sendCampaignWithAutoContinue } = await import('@/lib/email-api')
+      
+      setMessage(`▶️ "${campaign.name}" devam ediyor...`)
+      
+      const result = await sendCampaignWithAutoContinue(campaign.id, (progress) => {
+        setMessage(`📧 Gönderiliyor: ${progress.sentCount}/${progress.totalRecipients} (${progress.remaining} kaldı)`)
+        loadData()
+      })
+      
+      if (result.completed) {
+        setMessage(`✅ Kampanya tamamlandı: ${result.sentCount} email gönderildi`)
+      } else {
+        setMessage(`⏸️ Kampanya duraklatıldı: ${result.sentCount}/${result.totalRecipients} gönderildi`)
+      }
       loadData()
     } catch (error: any) {
       setMessage(`❌ Hata: ${error.message}`)
+      loadData()
     }
   }
 

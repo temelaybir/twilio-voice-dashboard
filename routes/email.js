@@ -48,12 +48,12 @@ async function ensureDatabase(req, res, next) {
 // Tüm email route'larına database middleware uygula
 router.use(ensureDatabase);
 
-// Rate limit ayarları (Google Workspace limitleri)
+// Rate limit ayarları (Google Workspace limitleri - Optimize edildi)
 const RATE_LIMITS = {
-  emailsPerMinute: parseInt(process.env.BULK_EMAIL_RATE_PER_MINUTE || '25'),
+  emailsPerMinute: parseInt(process.env.BULK_EMAIL_RATE_PER_MINUTE || '60'), // 60/dk (Google limit: 100/dk)
   dailyLimit: parseInt(process.env.BULK_EMAIL_DAILY_LIMIT || '2000'),
-  delayBetweenEmails: parseInt(process.env.BULK_EMAIL_DELAY_MS || '2500'), // 2.5 saniye (spam koruması)
-  batchSize: parseInt(process.env.BULK_EMAIL_BATCH_SIZE || '20') // Batch başına email sayısı (timeout için)
+  delayBetweenEmails: parseInt(process.env.BULK_EMAIL_DELAY_MS || '1000'), // 1 saniye delay
+  batchSize: parseInt(process.env.BULK_EMAIL_BATCH_SIZE || '8') // 8 email per batch (Vercel 10s timeout için)
 };
 
 // SMTP Transporter (lazy initialization)
@@ -1308,8 +1308,9 @@ router.post('/campaigns/:id/send', async (req, res) => {
       return res.status(404).json({ error: 'Kampanya bulunamadı' });
     }
     
-    if (campaign.status !== 'draft') {
-      return res.status(400).json({ error: 'Sadece taslak kampanyalar gönderilebilir' });
+    // Draft veya paused kampanyalar gönderilebilir
+    if (campaign.status !== 'draft' && campaign.status !== 'paused') {
+      return res.status(400).json({ error: 'Sadece taslak veya duraklatılmış kampanyalar gönderilebilir' });
     }
     
     // Template'i al
@@ -1320,12 +1321,38 @@ router.post('/campaigns/:id/send', async (req, res) => {
     
     // Listelerdeki aboneleri al
     const listIds = campaign.listIds.split(',').map(id => parseInt(id.trim()));
-    const subscribers = await subscriberRepo.find({
+    
+    // Daha önce gönderilmiş emailleri bul
+    const sentEmails = await sendRepo.find({
+      where: { campaignId: campaign.id },
+      select: ['subscriberId']
+    });
+    const sentSubscriberIds = new Set(sentEmails.map(s => s.subscriberId));
+    
+    // Tüm aktif aboneleri al
+    const allSubscribers = await subscriberRepo.find({
       where: listIds.map(id => ({ listId: id, status: 'active' }))
     });
     
-    if (subscribers.length === 0) {
+    // Henüz gönderilmemiş aboneleri filtrele
+    const subscribers = allSubscribers.filter(s => !sentSubscriberIds.has(s.id));
+    
+    if (allSubscribers.length === 0) {
       return res.status(400).json({ error: 'Aktif abone bulunamadı' });
+    }
+    
+    // Tüm emailler gönderildiyse
+    if (subscribers.length === 0) {
+      campaign.status = 'sent';
+      campaign.completedAt = new Date();
+      await campaignRepo.save(campaign);
+      return res.json({ 
+        success: true, 
+        message: 'Kampanya zaten tamamlanmış',
+        completed: true,
+        totalRecipients: allSubscribers.length,
+        sentCount: sentSubscriberIds.size
+      });
     }
     
     // Rate limit kontrolü
@@ -1338,10 +1365,14 @@ router.post('/campaigns/:id/send', async (req, res) => {
       });
     }
     
+    // Batch size: Vercel 10s timeout için max 8 email
+    const batchSize = RATE_LIMITS.batchSize;
+    const batch = subscribers.slice(0, batchSize);
+    
     // Kampanyayı güncelle
     campaign.status = 'sending';
-    campaign.startedAt = new Date();
-    campaign.totalRecipients = subscribers.length;
+    if (!campaign.startedAt) campaign.startedAt = new Date();
+    campaign.totalRecipients = allSubscribers.length;
     await campaignRepo.save(campaign);
     
     // Vercel serverless'ta senkron gönderim (response en sonda)
@@ -1351,7 +1382,8 @@ router.post('/campaigns/:id/send', async (req, res) => {
     let failedCount = 0;
     const errors = [];
     
-    for (const subscriber of subscribers) {
+    // Sadece batch kadar email gönder (Vercel timeout için)
+    for (const subscriber of batch) {
       try {
         // Rate limit kontrolü
         const rateCheck = checkRateLimit();
@@ -1489,25 +1521,44 @@ router.post('/campaigns/:id/send', async (req, res) => {
       }
     }
     
-    // Kampanyayı tamamla
-    campaign.status = 'sent';
-    campaign.completedAt = new Date();
-    campaign.sentCount = sentCount;
-    campaign.bouncedCount = failedCount;
+    // Kampanya istatistiklerini güncelle
+    const totalSentNow = sentSubscriberIds.size + sentCount;
+    const remainingCount = allSubscribers.length - totalSentNow;
+    const isCompleted = remainingCount <= 0;
+    
+    campaign.sentCount = totalSentNow;
+    campaign.bouncedCount = (campaign.bouncedCount || 0) + failedCount;
+    
+    if (isCompleted) {
+      campaign.status = 'sent';
+      campaign.completedAt = new Date();
+      logger.info(`✅ Kampanya tamamlandı: ${campaign.name} - ${totalSentNow} gönderildi`);
+    } else {
+      // Henüz bitmedi, paused durumuna al (frontend auto-continue yapacak)
+      campaign.status = 'paused';
+      logger.info(`⏸️ Batch tamamlandı: ${campaign.name} - ${sentCount}/${batch.length} gönderildi, ${remainingCount} kaldı`);
+    }
+    
     if (errors.length > 0) {
-      campaign.errorLogs = JSON.stringify(errors.slice(0, 100)); // Max 100 hata kaydet
+      const existingErrors = campaign.errorLogs ? JSON.parse(campaign.errorLogs) : [];
+      campaign.errorLogs = JSON.stringify([...existingErrors, ...errors].slice(-100)); // Son 100 hata
     }
     await campaignRepo.save(campaign);
-    
-    logger.info(`✅ Kampanya tamamlandı: ${campaign.name} - ${sentCount} gönderildi, ${failedCount} başarısız`);
     
     // Vercel serverless: Response en sonda dönmeli
     res.json({ 
       success: true, 
-      message: `Kampanya gönderildi: ${sentCount} başarılı, ${failedCount} başarısız`,
-      totalRecipients: subscribers.length,
-      sentCount,
-      failedCount
+      message: isCompleted 
+        ? `Kampanya tamamlandı: ${totalSentNow} email gönderildi`
+        : `Batch gönderildi: ${sentCount} email, ${remainingCount} kaldı`,
+      completed: isCompleted,
+      totalRecipients: allSubscribers.length,
+      sentCount: totalSentNow,
+      batchSent: sentCount,
+      remaining: remainingCount,
+      failedCount: campaign.bouncedCount,
+      // Frontend'in auto-continue yapması için
+      shouldContinue: !isCompleted
     });
     
   } catch (error) {

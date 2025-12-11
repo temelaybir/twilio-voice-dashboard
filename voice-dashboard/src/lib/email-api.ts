@@ -404,7 +404,19 @@ export async function deleteCampaign(id: number): Promise<{ success: boolean; me
   return data
 }
 
-export async function sendCampaign(id: number): Promise<{ success: boolean; message: string; totalRecipients: number }> {
+export interface SendCampaignResult {
+  success: boolean
+  message: string
+  completed: boolean
+  totalRecipients: number
+  sentCount: number
+  batchSent: number
+  remaining: number
+  failedCount: number
+  shouldContinue: boolean
+}
+
+export async function sendCampaign(id: number): Promise<SendCampaignResult> {
   const response = await fetch(`${API_BASE_URL}/email/campaigns/${id}/send`, {
     method: 'POST'
   })
@@ -415,6 +427,34 @@ export async function sendCampaign(id: number): Promise<{ success: boolean; mess
   }
   
   return data
+}
+
+// Auto-continue: Kampanyayı tamamlanana kadar göndermeye devam et
+export async function sendCampaignWithAutoContinue(
+  id: number, 
+  onProgress?: (result: SendCampaignResult) => void
+): Promise<SendCampaignResult> {
+  let lastResult: SendCampaignResult | null = null
+  
+  while (true) {
+    const result = await sendCampaign(id)
+    lastResult = result
+    
+    // Progress callback
+    if (onProgress) {
+      onProgress(result)
+    }
+    
+    // Tamamlandıysa veya devam etmemeli ise dur
+    if (result.completed || !result.shouldContinue) {
+      break
+    }
+    
+    // Kısa bir bekleme (rate limit için)
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }
+  
+  return lastResult!
 }
 
 export async function pauseCampaign(id: number): Promise<{ success: boolean; message: string }> {

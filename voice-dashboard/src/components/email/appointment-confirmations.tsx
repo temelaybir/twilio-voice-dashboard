@@ -91,7 +91,12 @@ export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmations
 
   const hasActiveFilters = statusFilter !== 'all' || cityFilter || listFilter || searchQuery
 
-  const getStatusBadge = (status?: string) => {
+  const getStatusBadge = (status?: string, note?: string) => {
+    // NEXT_EVENT notu varsa özel badge göster
+    if (status === 'rescheduled' && note?.startsWith('NEXT_EVENT')) {
+      return <Badge className="bg-purple-100 text-purple-700 border-purple-300"><Calendar className="h-3 w-3 mr-1" /> Next Event</Badge>
+    }
+    
     switch (status) {
       case 'confirmed':
         return <Badge className="bg-green-100 text-green-700 border-green-300"><CheckCircle2 className="h-3 w-3 mr-1" /> Potwierdzone</Badge>
@@ -433,7 +438,7 @@ export function AppointmentConfirmations({ onRefresh }: AppointmentConfirmations
                       <span className="font-semibold text-gray-900">
                         {confirmation.fullName || confirmation.firstName || 'Bilinmiyor'}
                       </span>
-                      {getStatusBadge(confirmation.confirmationStatus)}
+                      {getStatusBadge(confirmation.confirmationStatus, confirmation.confirmationNote)}
                       {getListName(confirmation.listId) && (
                         <Badge variant="outline" className="text-xs">
                           {getListName(confirmation.listId)}
