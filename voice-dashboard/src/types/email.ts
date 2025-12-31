@@ -8,6 +8,7 @@ export interface EmailTemplate {
   textContent?: string
   variables?: string // JSON string
   category: string
+  language?: 'pl' | 'en' // Template dili (pl = Lehçe, en = İngilizce)
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -155,6 +156,7 @@ export interface TemplateFormData {
   textContent?: string
   variables?: string[]
   category?: string
+  language?: 'pl' | 'en' // Template dili
 }
 
 export interface ListFormData {

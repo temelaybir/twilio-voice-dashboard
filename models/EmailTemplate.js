@@ -40,6 +40,13 @@ const EmailTemplate = new EntitySchema({
       nullable: true,
       default: 'general'
     },
+    // Template dili (pl = Lehçe, en = İngilizce)
+    language: {
+      type: 'varchar',
+      length: 10,
+      nullable: true,
+      default: 'pl'
+    },
     // Aktif/Pasif durumu
     isActive: {
       type: 'boolean',
@@ -59,6 +66,9 @@ const EmailTemplate = new EntitySchema({
 module.exports = {
   EmailTemplate
 };
+
+
+
 
 
 

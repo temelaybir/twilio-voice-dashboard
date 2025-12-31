@@ -1403,13 +1403,14 @@ router.post('/campaigns/:id/send', async (req, res) => {
           await subscriberRepo.save(subscriber);
         }
         
-        // Confirm URL oluştur
+        // Confirm URL oluştur - Şablon diline göre lang parametresi ekle
         const baseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
-        const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}`;
+        const templateLang = template.language || 'pl'; // Varsayılan Lehçe
+        const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}?lang=${templateLang}`;
         // Old list için tarih seçimli onay sayfası
-        const confirmSelectUrl = `${baseUrl}/api/email/confirm-select/${subscriber.confirmationToken}`;
+        const confirmSelectUrl = `${baseUrl}/api/email/confirm-select/${subscriber.confirmationToken}?lang=${templateLang}`;
         // Next Event URL (old list için - doğrudan next_event action'ına yönlendirir)
-        const nextEventUrl = `${baseUrl}/api/email/next-event/${subscriber.confirmationToken}`;
+        const nextEventUrl = `${baseUrl}/api/email/next-event/${subscriber.confirmationToken}?lang=${templateLang}`;
         
         // Liste bilgilerini al
         const subscriberList = await listRepo.findOne({ where: { id: subscriber.listId } });
@@ -1698,11 +1699,12 @@ router.post('/campaigns/:id/resume', async (req, res) => {
         }
         
         const baseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
-        const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}`;
+        const templateLang = template.language || 'pl'; // Varsayılan Lehçe
+        const confirmUrl = `${baseUrl}/api/email/confirm/${subscriber.confirmationToken}?lang=${templateLang}`;
         // Old list için tarih seçimli onay sayfası
-        const confirmSelectUrl = `${baseUrl}/api/email/confirm-select/${subscriber.confirmationToken}`;
+        const confirmSelectUrl = `${baseUrl}/api/email/confirm-select/${subscriber.confirmationToken}?lang=${templateLang}`;
         // Next Event URL (old list için)
-        const nextEventUrl = `${baseUrl}/api/email/next-event/${subscriber.confirmationToken}`;
+        const nextEventUrl = `${baseUrl}/api/email/next-event/${subscriber.confirmationToken}?lang=${templateLang}`;
         
         const subscriberList = await listRepo.findOne({ where: { id: subscriber.listId } });
         
@@ -1888,6 +1890,137 @@ router.get('/unsubscribe/:token', async (req, res) => {
 
 // ==================== RANDEVU ONAY SİSTEMİ ====================
 
+// Dil çevirileri
+const translations = {
+  pl: {
+    // Genel
+    pageTitle: 'Moja wizyta - Happy Smile Clinics',
+    linkExpired: 'Link wygasł',
+    linkExpiredTitle: '⚠️ Link wygasł lub jest nieprawidłowy',
+    linkExpiredText: 'Ten link potwierdzenia wizyty jest nieprawidłowy lub już został użyty. Jeśli potrzebujesz pomocy, skontaktuj się z nami.',
+    // Durum badge'leri
+    statusPending: 'Oczekuje na potwierdzenie',
+    statusConfirmed: 'Potwierdzona',
+    statusCancelled: 'Anulowana',
+    statusRescheduled: 'Zmiana terminu',
+    // Ana sayfa
+    myVisit: 'Moja wizyta',
+    patientPanel: 'Panel pacjenta',
+    patient: 'Pacjent',
+    date: 'Data',
+    selectedDay: 'Wybrany dzień',
+    time: 'Godzina',
+    location: 'Miejsce',
+    address: 'Adres',
+    notSelected: 'Nie wybrano',
+    yourNote: 'Twoja notatka:',
+    lastUpdate: 'Ostatnia aktualizacja:',
+    additionalNotes: 'Dodatkowe uwagi lub pytania...',
+    confirmVisit: '✓ Potwierdzam wizytę',
+    changeDate: '📅 Zmień termin',
+    cancel: '✗ Anuluję',
+    restoreVisit: '🔄 Przywróć wizytę',
+    infoText: 'Masz pytania? Odpowiedz na e-mail lub napisz do nas na WhatsApp.',
+    linkPrivate: 'Ten link jest aktywny tylko dla Ciebie.',
+    // Reschedule sayfası
+    backToDetails: '← Powrót do szczegółów',
+    changeDateTitle: 'Zmiana terminu',
+    selectNewDate: 'Wybierz nowy termin wizyty',
+    selectDay: '📅 Wybierz dzień:',
+    selectTime: '🕐 Wybierz godzinę:',
+    noDaysAvailable: 'Brak dostępnych dni',
+    optionalNotes: 'Dodatkowe uwagi (opcjonalnie)...',
+    saveNewDate: '✓ Zapisz nowy termin',
+    current: '(obecny)',
+    // Sonuç sayfaları
+    visitConfirmed: 'Wizyta potwierdzona!',
+    visitConfirmedText: 'Dziękujemy za potwierdzenie. Do zobaczenia!',
+    visitCancelled: 'Wizyta anulowana',
+    visitCancelledText: 'Twoja wizyta została anulowana. Skontaktuj się z nami, jeśli chcesz umówić nowy termin.',
+    dateChangeSaved: 'Zmiana terminu zapisana!',
+    dateChangeText: 'Skontaktujemy się z Tobą wkrótce.',
+    newAppointment: 'Nowy termin:',
+    savedForNextEvent: 'Zapisano na następne wydarzenie!',
+    nextEventText: 'Dziękujemy! Skontaktujemy się z Tobą przed następnym wydarzeniem w Twoim mieście.',
+    yourCity: 'Twoje miasto',
+    // Tarih seçim sayfası
+    confirmParticipation: '✓ Potwierdź udział',
+    selectVisitDate: 'Wybierz termin wizyty',
+    welcomeBack: 'Witamy ponownie',
+    selectPreferredDateTime: 'Proszę wybrać preferowany dzień i godzinę wizyty.',
+    confirmParticipationBtn: '✓ Potwierdzam udział',
+    contactQuestion: 'Masz pytania? Napisz do nas na WhatsApp lub odpowiedz na ostatni e-mail.',
+    seeYou: 'Do zobaczenia na spotkaniu.',
+    selected: 'Wybrano:'
+  },
+  en: {
+    // Genel
+    pageTitle: 'My Appointment - Happy Smile Clinics',
+    linkExpired: 'Link Expired',
+    linkExpiredTitle: '⚠️ Link expired or invalid',
+    linkExpiredText: 'This appointment confirmation link is invalid or has already been used. If you need help, please contact us.',
+    // Durum badge'leri
+    statusPending: 'Awaiting confirmation',
+    statusConfirmed: 'Confirmed',
+    statusCancelled: 'Cancelled',
+    statusRescheduled: 'Rescheduled',
+    // Ana sayfa
+    myVisit: 'My Appointment',
+    patientPanel: 'Patient Panel',
+    patient: 'Patient',
+    date: 'Date',
+    selectedDay: 'Selected day',
+    time: 'Time',
+    location: 'Location',
+    address: 'Address',
+    notSelected: 'Not selected',
+    yourNote: 'Your note:',
+    lastUpdate: 'Last update:',
+    additionalNotes: 'Additional notes or questions...',
+    confirmVisit: '✓ Confirm my visit',
+    changeDate: '📅 Change date',
+    cancel: '✗ Cancel',
+    restoreVisit: '🔄 Restore visit',
+    infoText: 'Have questions? Reply to the email or message us on WhatsApp.',
+    linkPrivate: 'This link is active only for you.',
+    // Reschedule sayfası
+    backToDetails: '← Back to details',
+    changeDateTitle: 'Change date',
+    selectNewDate: 'Select a new appointment date',
+    selectDay: '📅 Select day:',
+    selectTime: '🕐 Select time:',
+    noDaysAvailable: 'No days available',
+    optionalNotes: 'Additional notes (optional)...',
+    saveNewDate: '✓ Save new date',
+    current: '(current)',
+    // Sonuç sayfaları
+    visitConfirmed: 'Appointment Confirmed!',
+    visitConfirmedText: 'Thank you for confirming. See you soon!',
+    visitCancelled: 'Appointment Cancelled',
+    visitCancelledText: 'Your appointment has been cancelled. Contact us if you would like to schedule a new one.',
+    dateChangeSaved: 'Date change saved!',
+    dateChangeText: 'We will contact you soon.',
+    newAppointment: 'New appointment:',
+    savedForNextEvent: 'Registered for next event!',
+    nextEventText: 'Thank you! We will contact you before the next event in your city.',
+    yourCity: 'Your city',
+    // Tarih seçim sayfası
+    confirmParticipation: '✓ Confirm participation',
+    selectVisitDate: 'Select appointment date',
+    welcomeBack: 'Welcome back',
+    selectPreferredDateTime: 'Please select your preferred day and time for the appointment.',
+    confirmParticipationBtn: '✓ Confirm participation',
+    contactQuestion: 'Have questions? Message us on WhatsApp or reply to the last email.',
+    seeYou: 'See you at the appointment.',
+    selected: 'Selected:'
+  }
+};
+
+// Dil belirleme fonksiyonu
+function getLang(req) {
+  return req.query.lang === 'en' ? 'en' : 'pl';
+}
+
 // GET /api/email/confirm/:token - Randevu onay sayfası
 router.get('/confirm/:token', async (req, res) => {
   try {
@@ -1901,6 +2034,9 @@ router.get('/confirm/:token', async (req, res) => {
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
     const listRepo = AppDataSource.getRepository(EmailList);
     
+    const lang = getLang(req);
+    const t = translations[lang];
+    
     const subscriber = await subscriberRepo.findOne({ 
       where: { confirmationToken: req.params.token } 
     });
@@ -1908,11 +2044,11 @@ router.get('/confirm/:token', async (req, res) => {
     if (!subscriber) {
       return res.send(`
         <!DOCTYPE html>
-        <html lang="pl">
+        <html lang="${lang}">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Link wygasł</title>
+          <title>${t.linkExpired}</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
             .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
@@ -1922,8 +2058,8 @@ router.get('/confirm/:token', async (req, res) => {
         </head>
         <body>
           <div class="card">
-            <h2>⚠️ Link wygasł lub jest nieprawidłowy</h2>
-            <p>Ten link potwierdzenia wizyty jest nieprawidłowy lub już został użyty. Jeśli potrzebujesz pomocy, skontaktuj się z nami.</p>
+            <h2>${t.linkExpiredTitle}</h2>
+            <p>${t.linkExpiredText}</p>
           </div>
         </body>
         </html>
@@ -1938,22 +2074,22 @@ router.get('/confirm/:token', async (req, res) => {
     const status = subscriber.confirmationStatus || 'pending';
     const isReschedule = req.query.reschedule === 'true';
     
-    // Durum badge'leri
+    // Durum badge'leri - dile göre
     const statusBadges = {
-      pending: { icon: '⏳', text: 'Oczekuje na potwierdzenie', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-      confirmed: { icon: '✅', text: 'Potwierdzona', color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
-      cancelled: { icon: '❌', text: 'Anulowana', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-      rescheduled: { icon: '📅', text: 'Zmiana terminu', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' }
+      pending: { icon: '⏳', text: t.statusPending, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+      confirmed: { icon: '✅', text: t.statusConfirmed, color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+      cancelled: { icon: '❌', text: t.statusCancelled, color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+      rescheduled: { icon: '📅', text: t.statusRescheduled, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' }
     };
     const currentStatus = statusBadges[status] || statusBadges.pending;
     
     res.send(`
       <!DOCTYPE html>
-      <html lang="pl">
+      <html lang="${lang}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Moja wizyta - Happy Smile Clinics</title>
+        <title>${t.pageTitle}</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
           .card { background: #020617; border-radius: 16px; padding: 32px; max-width: 520px; width: 100%; border: 1px solid rgba(148,163,184,0.25); }
@@ -1996,66 +2132,66 @@ router.get('/confirm/:token', async (req, res) => {
           <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
           
           ${isReschedule ? `
-            <a href="/api/email/confirm/${req.params.token}" class="back-link">← Powrót do szczegółów</a>
-            <h2>Zmiana terminu</h2>
-            <h1>Wybierz nowy termin wizyty</h1>
+            <a href="/api/email/confirm/${req.params.token}?lang=${lang}" class="back-link">${t.backToDetails}</a>
+            <h2>${t.changeDateTitle}</h2>
+            <h1>${t.selectNewDate}</h1>
             
             <div class="details">
               <div class="detail-row">
-                <span class="label">📍 Lokalizacja</span>
+                <span class="label">📍 ${t.location}</span>
                 <span class="value">${list?.cityDisplay || list?.city || subscriber.city || 'Happy Smile'}</span>
               </div>
               ${list?.location ? `
               <div class="detail-row">
-                <span class="label">🏨 Adres</span>
+                <span class="label">🏨 ${t.address}</span>
                 <span class="value" style="font-size: 12px; max-width: 200px;">${list.location}</span>
               </div>
               ` : ''}
             </div>
             
-            <form id="rescheduleForm" method="POST" action="/api/email/confirm/${req.params.token}">
+            <form id="rescheduleForm" method="POST" action="/api/email/confirm/${req.params.token}?lang=${lang}">
               <input type="hidden" name="action" value="reschedule">
               
               <!-- Gün Seçimi -->
-              <div class="label" style="margin-bottom: 12px;">📅 Wybierz dzień:</div>
+              <div class="label" style="margin-bottom: 12px;">${t.selectDay}</div>
               <div class="time-slots">
                 ${list?.eventDay1 ? `
                   <div class="time-slot ${subscriber.eventDate === list.eventDay1 ? 'selected' : ''}">
                     <input type="radio" name="newDate" id="day1" value="${list.eventDay1}" ${subscriber.eventDate === list.eventDay1 ? 'checked' : (!subscriber.eventDate ? 'checked' : '')}>
-                    <label for="day1">${list.eventDay1} ${subscriber.eventDate === list.eventDay1 ? '(obecny)' : ''}</label>
+                    <label for="day1">${list.eventDay1} ${subscriber.eventDate === list.eventDay1 ? t.current : ''}</label>
                   </div>
                 ` : ''}
                 ${list?.eventDay2 ? `
                   <div class="time-slot ${subscriber.eventDate === list.eventDay2 ? 'selected' : ''}">
                     <input type="radio" name="newDate" id="day2" value="${list.eventDay2}" ${subscriber.eventDate === list.eventDay2 ? 'checked' : ''}>
-                    <label for="day2">${list.eventDay2} ${subscriber.eventDate === list.eventDay2 ? '(obecny)' : ''}</label>
+                    <label for="day2">${list.eventDay2} ${subscriber.eventDate === list.eventDay2 ? t.current : ''}</label>
                   </div>
                 ` : ''}
                 ${!list?.eventDay1 && !list?.eventDay2 ? `
-                  <div style="color: #9ca3af; font-size: 14px; padding: 12px;">Brak dostępnych dni</div>
+                  <div style="color: #9ca3af; font-size: 14px; padding: 12px;">${t.noDaysAvailable}</div>
                 ` : ''}
               </div>
               
               <!-- Saat Seçimi -->
-              <div class="label" style="margin: 20px 0 12px;">🕐 Wybierz godzinę:</div>
+              <div class="label" style="margin: 20px 0 12px;">${t.selectTime}</div>
               <div class="time-slots">
                 ${timeSlots.map((slot, index) => `
                   <div class="time-slot ${subscriber.eventTime === slot ? 'selected' : ''}">
                     <input type="radio" name="newTimeSlot" id="slot${index}" value="${slot}" ${subscriber.eventTime === slot ? 'checked' : (index === 0 && !subscriber.eventTime ? 'checked' : '')}>
-                    <label for="slot${index}">${slot} ${subscriber.eventTime === slot ? '(obecny)' : ''}</label>
+                    <label for="slot${index}">${slot} ${subscriber.eventTime === slot ? t.current : ''}</label>
                   </div>
                 `).join('')}
               </div>
               
-              <textarea name="note" class="note-input" placeholder="Dodatkowe uwagi (opcjonalnie)..."></textarea>
+              <textarea name="note" class="note-input" placeholder="${t.optionalNotes}"></textarea>
               
               <div class="buttons">
-                <button type="submit" class="btn btn-confirm">✓ Zapisz nowy termin</button>
+                <button type="submit" class="btn btn-confirm">${t.saveNewDate}</button>
               </div>
             </form>
           ` : `
-            <h2>Moja wizyta</h2>
-            <h1>Panel pacjenta</h1>
+            <h2>${t.myVisit}</h2>
+            <h1>${t.patientPanel}</h1>
             
             <div class="status-badge" style="background: ${currentStatus.bg}; color: ${currentStatus.color}; border: 1px solid ${currentStatus.color}40;">
               ${currentStatus.icon} ${currentStatus.text}
@@ -2063,28 +2199,28 @@ router.get('/confirm/:token', async (req, res) => {
             
             <div class="details">
               <div class="detail-row">
-                <span class="label">👤 Pacjent</span>
-                <span class="value">${subscriber.fullName || subscriber.firstName || 'Pacjent'}</span>
+                <span class="label">👤 ${t.patient}</span>
+                <span class="value">${subscriber.fullName || subscriber.firstName || t.patient}</span>
               </div>
               <div class="detail-row">
-                <span class="label">📅 Data</span>
+                <span class="label">📅 ${t.date}</span>
                 <span class="value">${list?.eventDates || '-'}</span>
               </div>
               <div class="detail-row">
-                <span class="label">📆 Wybrany dzień</span>
-                <span class="value" style="color: ${subscriber.eventDate ? '#22c55e' : '#f59e0b'};">${subscriber.eventDate || 'Nie wybrano'}</span>
+                <span class="label">📆 ${t.selectedDay}</span>
+                <span class="value" style="color: ${subscriber.eventDate ? '#22c55e' : '#f59e0b'};">${subscriber.eventDate || t.notSelected}</span>
               </div>
               <div class="detail-row">
-                <span class="label">🕐 Godzina</span>
-                <span class="value" style="color: ${subscriber.eventTime ? '#22c55e' : '#f59e0b'};">${subscriber.eventTime || 'Nie wybrano'}</span>
+                <span class="label">🕐 ${t.time}</span>
+                <span class="value" style="color: ${subscriber.eventTime ? '#22c55e' : '#f59e0b'};">${subscriber.eventTime || t.notSelected}</span>
               </div>
               <div class="detail-row">
-                <span class="label">📍 Miejsce</span>
+                <span class="label">📍 ${t.location}</span>
                 <span class="value">${list?.cityDisplay || list?.city || subscriber.city || '-'}</span>
               </div>
               ${list?.location ? `
               <div class="detail-row">
-                <span class="label">🏨 Adres</span>
+                <span class="label">🏨 ${t.address}</span>
                 <span class="value" style="font-size: 12px; max-width: 200px;">${list.location}</span>
               </div>
               ` : ''}
@@ -2092,42 +2228,42 @@ router.get('/confirm/:token', async (req, res) => {
             
             ${subscriber.confirmationNote ? `
             <div class="history">
-              <strong>📝 Twoja notatka:</strong><br>
+              <strong>📝 ${t.yourNote}</strong><br>
               ${subscriber.confirmationNote}
             </div>
             ` : ''}
             
             ${subscriber.confirmedAt ? `
             <div class="history">
-              <strong>📆 Ostatnia aktualizacja:</strong> ${new Date(subscriber.confirmedAt).toLocaleString('pl-PL')}
+              <strong>📆 ${t.lastUpdate}</strong> ${new Date(subscriber.confirmedAt).toLocaleString(lang === 'en' ? 'en-GB' : 'pl-PL')}
             </div>
             ` : ''}
             
             <div class="divider"></div>
             
-            <form id="confirmForm" method="POST" action="/api/email/confirm/${req.params.token}">
-              <textarea name="note" class="note-input" placeholder="Dodatkowe uwagi lub pytania..."></textarea>
+            <form id="confirmForm" method="POST" action="/api/email/confirm/${req.params.token}?lang=${lang}">
+              <textarea name="note" class="note-input" placeholder="${t.additionalNotes}"></textarea>
               
               ${status !== 'confirmed' ? `
               <div class="buttons">
-                <button type="submit" name="action" value="confirm" class="btn btn-confirm">✓ Potwierdzam wizytę</button>
+                <button type="submit" name="action" value="confirm" class="btn btn-confirm">${t.confirmVisit}</button>
               </div>
               ` : ''}
               
               <div class="buttons" style="margin-top: 10px;">
-                <a href="/api/email/confirm/${req.params.token}?reschedule=true" class="btn btn-reschedule">📅 Zmień termin</a>
+                <a href="/api/email/confirm/${req.params.token}?reschedule=true&lang=${lang}" class="btn btn-reschedule">${t.changeDate}</a>
                 ${status !== 'cancelled' ? `
-                <button type="submit" name="action" value="cancel" class="btn btn-cancel">✗ Anuluję</button>
+                <button type="submit" name="action" value="cancel" class="btn btn-cancel">${t.cancel}</button>
                 ` : `
-                <button type="submit" name="action" value="confirm" class="btn btn-secondary">🔄 Przywróć wizytę</button>
+                <button type="submit" name="action" value="confirm" class="btn btn-secondary">${t.restoreVisit}</button>
                 `}
               </div>
             </form>
           `}
           
           <p class="info">
-            Masz pytania? Odpowiedz na e-mail lub napisz do nas na WhatsApp.<br>
-            <small style="opacity: 0.7;">Ten link jest aktywny tylko dla Ciebie.</small>
+            ${t.infoText}<br>
+            <small style="opacity: 0.7;">${t.linkPrivate}</small>
           </p>
         </div>
       </body>
@@ -2152,12 +2288,15 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
     const listRepo = AppDataSource.getRepository(EmailList);
     
+    const lang = getLang(req);
+    const t = translations[lang];
+    
     const subscriber = await subscriberRepo.findOne({ 
       where: { confirmationToken: req.params.token } 
     });
     
     if (!subscriber) {
-      return res.redirect(`/api/email/confirm/${req.params.token}`);
+      return res.redirect(`/api/email/confirm/${req.params.token}?lang=${lang}`);
     }
     
     const { action, note, newTimeSlot, newDate } = req.body;
@@ -2181,7 +2320,7 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
         subscriber.eventTime = newTimeSlot;
       }
       // Not'a da ekle
-      const rescheduleNote = `Nowy termin: ${newDate || subscriber.eventDate || '-'} o ${newTimeSlot || subscriber.eventTime || '-'}${note ? '. ' + note : ''}`;
+      const rescheduleNote = `${t.newAppointment} ${newDate || subscriber.eventDate || '-'} @ ${newTimeSlot || subscriber.eventTime || '-'}${note ? '. ' + note : ''}`;
       subscriber.confirmationNote = rescheduleNote;
     }
     
@@ -2199,21 +2338,21 @@ router.post('/confirm/:token', express.urlencoded({ extended: true }), async (re
     
     // Sonuç sayfası
     const newTerminText = (newDate || newTimeSlot) 
-      ? `Nowy termin: ${newDate || subscriber.eventDate || '-'} o ${newTimeSlot || subscriber.eventTime || '-'}.`
-      : 'Oczekuje na potwierdzenie.';
+      ? `${t.newAppointment} ${newDate || subscriber.eventDate || '-'} @ ${newTimeSlot || subscriber.eventTime || '-'}.`
+      : '';
     
     const statusMessages = {
-      confirm: { icon: '✅', title: 'Wizyta potwierdzona!', text: 'Dziękujemy za potwierdzenie. Do zobaczenia!' },
-      cancel: { icon: '❌', title: 'Wizyta anulowana', text: 'Twoja wizyta została anulowana. Skontaktuj się z nami, jeśli chcesz umówić nowy termin.' },
-      reschedule: { icon: '📅', title: 'Zmiana terminu zapisana!', text: `${newTerminText} Skontaktujemy się z Tobą wkrótce.` },
-      next_event: { icon: '📆', title: 'Zapisano na następne wydarzenie!', text: 'Dziękujemy! Skontaktujemy się z Tobą przed następnym wydarzeniem w Twoim mieście.' }
+      confirm: { icon: '✅', title: t.visitConfirmed, text: t.visitConfirmedText },
+      cancel: { icon: '❌', title: t.visitCancelled, text: t.visitCancelledText },
+      reschedule: { icon: '📅', title: t.dateChangeSaved, text: `${newTerminText} ${t.dateChangeText}` },
+      next_event: { icon: '📆', title: t.savedForNextEvent, text: t.nextEventText }
     };
     
     const msg = statusMessages[action] || statusMessages.confirm;
     
     res.send(`
       <!DOCTYPE html>
-      <html lang="pl">
+      <html lang="${lang}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2256,6 +2395,9 @@ router.get('/confirm-select/:token', async (req, res) => {
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
     const listRepo = AppDataSource.getRepository(EmailList);
     
+    const lang = getLang(req);
+    const t = translations[lang];
+    
     const subscriber = await subscriberRepo.findOne({ 
       where: { confirmationToken: req.params.token } 
     });
@@ -2263,11 +2405,11 @@ router.get('/confirm-select/:token', async (req, res) => {
     if (!subscriber) {
       return res.send(`
         <!DOCTYPE html>
-        <html lang="pl">
+        <html lang="${lang}">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Link wygasł</title>
+          <title>${t.linkExpired}</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
             .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
@@ -2277,8 +2419,8 @@ router.get('/confirm-select/:token', async (req, res) => {
         </head>
         <body>
           <div class="card">
-            <h2>⚠️ Link wygasł lub jest nieprawidłowy</h2>
-            <p>Ten link jest nieprawidłowy lub już został użyty. Jeśli potrzebujesz pomocy, skontaktuj się z nami.</p>
+            <h2>${t.linkExpiredTitle}</h2>
+            <p>${t.linkExpiredText}</p>
           </div>
         </body>
         </html>
@@ -2291,11 +2433,11 @@ router.get('/confirm-select/:token', async (req, res) => {
     // Tarih seçim sayfası göster
     res.send(`
       <!DOCTYPE html>
-      <html lang="pl">
+      <html lang="${lang}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Wybierz termin - Happy Smile Clinics</title>
+        <title>${t.selectVisitDate} - Happy Smile Clinics</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
           .card { background: #020617; border-radius: 16px; padding: 32px; max-width: 520px; width: 100%; border: 1px solid rgba(148,163,184,0.25); }
@@ -2322,30 +2464,30 @@ router.get('/confirm-select/:token', async (req, res) => {
         <div class="card">
           <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
           
-          <h2>✓ Potwierdź udział</h2>
-          <h1>Wybierz termin wizyty</h1>
+          <h2>${t.confirmParticipation}</h2>
+          <h1>${t.selectVisitDate}</h1>
           
           <p style="color: #9ca3af; margin-bottom: 20px;">
-            Witamy ponownie <strong style="color: #e5e7eb;">${subscriber.fullName || subscriber.firstName || 'Pacjent'}</strong>! 
-            Proszę wybrać preferowany dzień i godzinę wizyty.
+            ${t.welcomeBack} <strong style="color: #e5e7eb;">${subscriber.fullName || subscriber.firstName || t.patient}</strong>! 
+            ${t.selectPreferredDateTime}
           </p>
           
           <div class="details">
             <div class="detail-row">
-              <span class="label">📍 Lokalizacja</span>
+              <span class="label">📍 ${t.location}</span>
               <span class="value">${list?.cityDisplay || list?.city || subscriber.city || 'Happy Smile'}</span>
             </div>
             ${list?.location ? `
             <div class="detail-row">
-              <span class="label">🏨 Adres</span>
+              <span class="label">🏨 ${t.address}</span>
               <span class="value" style="font-size: 12px; max-width: 200px;">${list.location}</span>
             </div>
             ` : ''}
           </div>
           
-          <form method="POST" action="/api/email/confirm-select/${req.params.token}">
+          <form method="POST" action="/api/email/confirm-select/${req.params.token}?lang=${lang}">
             <!-- Gün Seçimi -->
-            <div class="label" style="margin-bottom: 12px;">📅 Wybierz dzień:</div>
+            <div class="label" style="margin-bottom: 12px;">${t.selectDay}</div>
             <div class="time-slots">
               ${list?.eventDay1 ? `
                 <div class="time-slot">
@@ -2360,12 +2502,12 @@ router.get('/confirm-select/:token', async (req, res) => {
                 </div>
               ` : ''}
               ${!list?.eventDay1 && !list?.eventDay2 ? `
-                <div style="color: #9ca3af; font-size: 14px; padding: 12px;">Skontaktuj się z nami, aby poznać dostępne terminy.</div>
+                <div style="color: #9ca3af; font-size: 14px; padding: 12px;">${t.noDaysAvailable}</div>
               ` : ''}
             </div>
             
             <!-- Saat Seçimi -->
-            <div class="label" style="margin: 20px 0 12px;">🕐 Wybierz godzinę:</div>
+            <div class="label" style="margin: 20px 0 12px;">${t.selectTime}</div>
             <div class="time-slots">
               ${timeSlots.map((slot, index) => `
                 <div class="time-slot">
@@ -2375,11 +2517,11 @@ router.get('/confirm-select/:token', async (req, res) => {
               `).join('')}
             </div>
             
-            <button type="submit" class="btn">✓ Potwierdzam udział</button>
+            <button type="submit" class="btn">${t.confirmParticipationBtn}</button>
           </form>
           
           <p class="info">
-            Masz pytania? Napisz do nas na WhatsApp lub odpowiedz na ostatni e-mail.
+            ${t.contactQuestion}
           </p>
         </div>
       </body>
@@ -2404,12 +2546,15 @@ router.post('/confirm-select/:token', express.urlencoded({ extended: true }), as
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
     const listRepo = AppDataSource.getRepository(EmailList);
     
+    const lang = getLang(req);
+    const t = translations[lang];
+    
     const subscriber = await subscriberRepo.findOne({ 
       where: { confirmationToken: req.params.token } 
     });
     
     if (!subscriber) {
-      return res.redirect(`/api/email/confirm-select/${req.params.token}`);
+      return res.redirect(`/api/email/confirm-select/${req.params.token}?lang=${lang}`);
     }
     
     const { newDate, newTimeSlot } = req.body;
@@ -2419,7 +2564,7 @@ router.post('/confirm-select/:token', express.urlencoded({ extended: true }), as
     subscriber.eventDate = newDate || subscriber.eventDate;
     subscriber.eventTime = newTimeSlot || subscriber.eventTime;
     subscriber.confirmedAt = new Date();
-    subscriber.confirmationNote = `Wybrano: ${newDate || '-'} o ${newTimeSlot || '-'}`;
+    subscriber.confirmationNote = `${t.selected} ${newDate || '-'} @ ${newTimeSlot || '-'}`;
     
     await subscriberRepo.save(subscriber);
     
@@ -2430,11 +2575,11 @@ router.post('/confirm-select/:token', express.urlencoded({ extended: true }), as
     // Başarı sayfası
     res.send(`
       <!DOCTYPE html>
-      <html lang="pl">
+      <html lang="${lang}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Wizyta potwierdzona! - Happy Smile Clinics</title>
+        <title>${t.visitConfirmed} - Happy Smile Clinics</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
           .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
@@ -2453,32 +2598,32 @@ router.post('/confirm-select/:token', express.urlencoded({ extended: true }), as
         <div class="card">
           <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
           <div class="icon">✅</div>
-          <h2>Wizyta potwierdzona!</h2>
-          <p>Dziękujemy za potwierdzenie! Do zobaczenia na spotkaniu.</p>
+          <h2>${t.visitConfirmed}</h2>
+          <p>${t.seeYou}</p>
           
           <div class="details">
             <div class="detail-row">
-              <span class="label">📅 Data</span>
+              <span class="label">📅 ${t.date}</span>
               <span class="value">${newDate || '-'}</span>
             </div>
             <div class="detail-row">
-              <span class="label">🕐 Godzina</span>
+              <span class="label">🕐 ${t.time}</span>
               <span class="value">${newTimeSlot || '-'}</span>
             </div>
             <div class="detail-row">
-              <span class="label">📍 Miejsce</span>
+              <span class="label">📍 ${t.location}</span>
               <span class="value">${list?.cityDisplay || list?.city || subscriber.city || '-'}</span>
             </div>
             ${list?.location ? `
             <div class="detail-row">
-              <span class="label">🏨 Adres</span>
+              <span class="label">🏨 ${t.address}</span>
               <span class="value" style="font-size: 12px;">${list.location}</span>
             </div>
             ` : ''}
           </div>
           
           <p style="margin-top: 24px; font-size: 13px;">
-            Masz pytania? Napisz do nas na WhatsApp lub odpowiedz na ostatni e-mail.
+            ${t.contactQuestion}
           </p>
         </div>
       </body>
@@ -2503,6 +2648,9 @@ router.get('/next-event/:token', async (req, res) => {
     const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
     const listRepo = AppDataSource.getRepository(EmailList);
     
+    const lang = getLang(req);
+    const t = translations[lang];
+    
     const subscriber = await subscriberRepo.findOne({ 
       where: { confirmationToken: req.params.token } 
     });
@@ -2510,11 +2658,11 @@ router.get('/next-event/:token', async (req, res) => {
     if (!subscriber) {
       return res.send(`
         <!DOCTYPE html>
-        <html lang="pl">
+        <html lang="${lang}">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Link wygasł</title>
+          <title>${t.linkExpired}</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
             .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
@@ -2524,8 +2672,8 @@ router.get('/next-event/:token', async (req, res) => {
         </head>
         <body>
           <div class="card">
-            <h2>⚠️ Link wygasł lub jest nieprawidłowy</h2>
-            <p>Ten link jest nieprawidłowy lub już został użyty. Jeśli potrzebujesz pomocy, skontaktuj się z nami.</p>
+            <h2>${t.linkExpiredTitle}</h2>
+            <p>${t.linkExpiredText}</p>
           </div>
         </body>
         </html>
@@ -2545,11 +2693,11 @@ router.get('/next-event/:token', async (req, res) => {
     // Başarı sayfası göster
     res.send(`
       <!DOCTYPE html>
-      <html lang="pl">
+      <html lang="${lang}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Zapisano na następne wydarzenie - Happy Smile Clinics</title>
+        <title>${t.savedForNextEvent} - Happy Smile Clinics</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0f172a; color: #e5e7eb; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; box-sizing: border-box; }
           .card { background: #020617; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; border: 1px solid rgba(148,163,184,0.25); }
@@ -2566,16 +2714,16 @@ router.get('/next-event/:token', async (req, res) => {
         <div class="card">
           <img src="https://happysmileclinics.com/wp-content/uploads/2024/12/happy-smile-clinics-180x52.png" alt="Happy Smile Clinics" class="logo">
           <div class="icon">📆</div>
-          <h2>Zapisano na następne wydarzenie!</h2>
-          <p>Dziękujemy za zainteresowanie! Skontaktujemy się z Tobą przed następnym wydarzeniem w Twoim mieście.</p>
+          <h2>${t.savedForNextEvent}</h2>
+          <p>${t.nextEventText}</p>
           
           <div class="info">
-            <div class="info-label">📍 Twoje miasto</div>
-            <div class="info-value">${list?.cityDisplay || list?.city || subscriber.city || 'Twoje miasto'}</div>
+            <div class="info-label">📍 ${t.yourCity}</div>
+            <div class="info-value">${list?.cityDisplay || list?.city || subscriber.city || t.yourCity}</div>
           </div>
           
           <p style="margin-top: 24px; font-size: 13px;">
-            Masz pytania? Napisz do nas na WhatsApp lub odpowiedz na ostatni e-mail.
+            ${t.contactQuestion}
           </p>
         </div>
       </body>

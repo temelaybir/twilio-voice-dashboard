@@ -50,6 +50,10 @@ const defaultHtmlContent = `<!DOCTYPE html>
 </html>`
 
 const categories = ['general', 'marketing', 'notification', 'reminder', 'welcome']
+const languages = [
+  { value: 'pl', label: '🇵🇱 Lehçe (Polski)', flag: '🇵🇱' },
+  { value: 'en', label: '🇬🇧 İngilizce (English)', flag: '🇬🇧' }
+] as const
 
 type EditorMode = 'select' | 'code' | 'visual'
 
@@ -64,7 +68,8 @@ export function TemplateEditorModal({
     subject: '',
     htmlContent: defaultHtmlContent,
     textContent: '',
-    category: 'general'
+    category: 'general',
+    language: 'pl'
   })
   const [designJson, setDesignJson] = useState<any>(null)
   const [saving, setSaving] = useState(false)
@@ -80,7 +85,8 @@ export function TemplateEditorModal({
           subject: template.subject,
           htmlContent: template.htmlContent,
           textContent: template.textContent || '',
-          category: template.category
+          category: template.category,
+          language: template.language || 'pl'
         })
         setDesignJson(null)
         // Mevcut şablonu düzenlerken direkt kod editöre git
@@ -91,7 +97,8 @@ export function TemplateEditorModal({
           subject: '',
           htmlContent: defaultHtmlContent,
           textContent: '',
-          category: 'general'
+          category: 'general',
+          language: 'pl'
         })
         setDesignJson(null)
         // Yeni şablon için seçim ekranını göster
@@ -260,8 +267,8 @@ export function TemplateEditorModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Name & Category */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Name & Category & Language */}
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">Şablon Adı *</label>
               <Input
@@ -285,6 +292,22 @@ export function TemplateEditorModal({
                   </Badge>
                 ))}
               </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">🌐 Şablon Dili</label>
+              <div className="flex gap-2">
+                {languages.map(lang => (
+                  <Badge
+                    key={lang.value}
+                    variant={formData.language === lang.value ? 'default' : 'outline'}
+                    className={`cursor-pointer ${formData.language === lang.value ? 'bg-blue-600' : ''}`}
+                    onClick={() => setFormData({ ...formData, language: lang.value })}
+                  >
+                    {lang.flag} {lang.value.toUpperCase()}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Onay sayfası dili</p>
             </div>
           </div>
 
