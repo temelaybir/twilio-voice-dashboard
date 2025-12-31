@@ -71,12 +71,18 @@ export async function createTemplate(template: TemplateFormData): Promise<{ succ
 }
 
 export async function updateTemplate(id: number, template: Partial<TemplateFormData>): Promise<{ success: boolean; data: EmailTemplate }> {
+  console.log('🔵 updateTemplate called:', { id, template })
+  console.log('🔵 Language being sent:', template.language)
+  
   const response = await fetch(`${API_BASE_URL}/email/templates/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(template)
   })
   const data = await response.json()
+  
+  console.log('🟢 updateTemplate response:', data)
+  console.log('🟢 Response language:', data.data?.language)
   
   if (!response.ok) {
     throw new Error(data.error || `HTTP ${response.status}`)

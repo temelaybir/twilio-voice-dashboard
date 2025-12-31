@@ -279,6 +279,10 @@ router.put('/templates/:id', async (req, res) => {
     
     const { name, subject, htmlContent, textContent, variables, category, language, isActive } = req.body;
 
+    logger.info(`🔵 Template güncelleme isteği - ID: ${req.params.id}`);
+    logger.info(`🔵 Gelen body:`, JSON.stringify(req.body).substring(0, 500));
+    logger.info(`🔵 Language değeri: "${language}"`);
+
     if (name) template.name = name;
     if (subject) template.subject = subject;
     if (htmlContent) template.htmlContent = htmlContent;
@@ -288,7 +292,11 @@ router.put('/templates/:id', async (req, res) => {
     if (language) template.language = language;
     if (isActive !== undefined) template.isActive = isActive;
 
+    logger.info(`🟢 Güncellenmiş template.language: "${template.language}"`);
+
     await templateRepo.save(template);
+
+    logger.info(`✅ Template kaydedildi - language: "${template.language}"`);
     
     logger.info(`✅ Email template güncellendi: ${template.name}`);
     res.json({ success: true, data: template });

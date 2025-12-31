@@ -120,6 +120,9 @@ export function TemplateEditorModal({
   const handleSave = async () => {
     if (!validate()) return
     
+    console.log('🔵 handleSave - formData:', formData)
+    console.log('🔵 handleSave - language:', formData.language)
+    
     setSaving(true)
     try {
       await onSave(formData)
