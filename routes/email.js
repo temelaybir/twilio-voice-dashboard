@@ -501,6 +501,47 @@ router.put('/lists/:id', async (req, res) => {
   }
 });
 
+// POST /api/email/lists/recalculate-counts - Tüm listelerin abone sayısını yeniden hesapla
+router.post('/lists/recalculate-counts', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+    
+    const { EmailList } = require('../models/EmailList');
+    const { EmailSubscriber } = require('../models/EmailSubscriber');
+    const listRepo = AppDataSource.getRepository(EmailList);
+    const subscriberRepo = AppDataSource.getRepository(EmailSubscriber);
+    
+    const lists = await listRepo.find();
+    const updated = [];
+    
+    for (const list of lists) {
+      const actualCount = await subscriberRepo.count({ 
+        where: { listId: list.id, status: 'active' } 
+      });
+      
+      if (list.subscriberCount !== actualCount) {
+        const oldCount = list.subscriberCount || 0;
+        list.subscriberCount = actualCount;
+        await listRepo.save(list);
+        updated.push({ id: list.id, name: list.name, oldCount, newCount: actualCount });
+      }
+    }
+    
+    logger.info(`✅ Liste sayaçları güncellendi: ${updated.length} liste`);
+    res.json({ 
+      success: true, 
+      message: `${updated.length} liste güncellendi`,
+      updated 
+    });
+  } catch (error) {
+    logger.error('Liste sayaç güncelleme hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // DELETE /api/email/lists/:id - Liste sil
 router.delete('/lists/:id', async (req, res) => {
   try {
