@@ -92,22 +92,54 @@ const RATE_LIMITS = {
   batchSize: parseInt(process.env.BULK_EMAIL_BATCH_SIZE || '8') // 8 email per batch (Vercel 10s timeout için)
 };
 
-// SMTP Transporter (lazy initialization)
-let transporter = null;
+// SMTP Transporter (lazy initialization) - Dil bazlı
+const transporters = {
+  pl: null,
+  en: null
+};
 
-function getTransporter() {
-  if (transporter) return transporter;
+/**
+ * Dil bazlı email transporter döndürür
+ * @param {string} lang - 'pl' veya 'en' (varsayılan: 'pl')
+ * @returns {object|null} - Nodemailer transporter veya null
+ * 
+ * Environment Variables:
+ * - PL için: BULK_EMAIL_USER_PL, BULK_EMAIL_PASS_PL (veya BULK_EMAIL_USER, BULK_EMAIL_PASS fallback)
+ * - EN için: BULK_EMAIL_USER_EN, BULK_EMAIL_PASS_EN
+ * - Ortak: BULK_EMAIL_HOST, BULK_EMAIL_PORT, BULK_EMAIL_SECURE
+ */
+function getTransporter(lang = 'pl') {
+  const normalizedLang = (lang === 'en') ? 'en' : 'pl';
   
-  // Bulk email için ayrı credentials kontrolü
-  const emailUser = process.env.BULK_EMAIL_USER || process.env.EMAIL_USER;
-  const emailPass = process.env.BULK_EMAIL_PASS || process.env.EMAIL_PASS;
+  if (transporters[normalizedLang]) return transporters[normalizedLang];
+  
+  // Dil bazlı credentials
+  let emailUser, emailPass, fromName;
+  
+  if (normalizedLang === 'en') {
+    // İngilizce/UK için
+    emailUser = process.env.BULK_EMAIL_USER_EN;
+    emailPass = process.env.BULK_EMAIL_PASS_EN;
+    fromName = process.env.BULK_EMAIL_FROM_NAME_EN || 'Happy Smile Clinics';
+    
+    if (!emailUser || !emailPass) {
+      logger.warn('⚠️ EN Email credentials not configured (BULK_EMAIL_USER_EN/BULK_EMAIL_PASS_EN)');
+      // Fallback to PL credentials if EN not configured
+      return getTransporter('pl');
+    }
+  } else {
+    // Lehçe için (varsayılan)
+    emailUser = process.env.BULK_EMAIL_USER_PL || process.env.BULK_EMAIL_USER || process.env.EMAIL_USER;
+    emailPass = process.env.BULK_EMAIL_PASS_PL || process.env.BULK_EMAIL_PASS || process.env.EMAIL_PASS;
+    fromName = process.env.BULK_EMAIL_FROM_NAME_PL || process.env.BULK_EMAIL_FROM_NAME || 'Happy Smile Clinics';
+  }
   
   if (!emailUser || !emailPass) {
-    logger.warn('⚠️ Email credentials not configured (BULK_EMAIL_USER/BULK_EMAIL_PASS or EMAIL_USER/EMAIL_PASS)');
+    logger.warn(`⚠️ ${normalizedLang.toUpperCase()} Email credentials not configured`);
     return null;
   }
   
-  transporter = nodemailer.createTransport({
+  transporters[normalizedLang] = nodemailer.createTransport({
     host: process.env.BULK_EMAIL_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.BULK_EMAIL_PORT || '587'),
     secure: process.env.BULK_EMAIL_SECURE === 'true',
@@ -123,8 +155,29 @@ function getTransporter() {
     rateLimit: RATE_LIMITS.emailsPerMinute
   });
   
-  logger.info(`✅ Email transporter oluşturuldu: ${emailUser}`);
-  return transporter;
+  logger.info(`✅ Email transporter oluşturuldu (${normalizedLang.toUpperCase()}): ${emailUser}`);
+  return transporters[normalizedLang];
+}
+
+/**
+ * Dil bazlı gönderen email adresini döndürür
+ * @param {string} lang - 'pl' veya 'en'
+ * @returns {object} - { email, name }
+ */
+function getSenderInfo(lang = 'pl') {
+  const normalizedLang = (lang === 'en') ? 'en' : 'pl';
+  
+  if (normalizedLang === 'en') {
+    return {
+      email: process.env.BULK_EMAIL_USER_EN || process.env.BULK_EMAIL_USER,
+      name: process.env.BULK_EMAIL_FROM_NAME_EN || 'Happy Smile Clinics'
+    };
+  } else {
+    return {
+      email: process.env.BULK_EMAIL_USER_PL || process.env.BULK_EMAIL_USER,
+      name: process.env.BULK_EMAIL_FROM_NAME_PL || process.env.BULK_EMAIL_FROM_NAME || 'Happy Smile Clinics'
+    };
+  }
 }
 
 // Rate limit kontrolü
@@ -1372,11 +1425,6 @@ router.post('/campaigns/:id/send', async (req, res) => {
       return res.status(503).json({ error: 'Database not available' });
     }
     
-    const transport = getTransporter();
-    if (!transport) {
-      return res.status(503).json({ error: 'Email servisi yapılandırılmamış' });
-    }
-    
     const { EmailCampaign } = require('../models/EmailCampaign');
     const { EmailTemplate } = require('../models/EmailTemplate');
     const { EmailList } = require('../models/EmailList');
@@ -1405,6 +1453,15 @@ router.post('/campaigns/:id/send', async (req, res) => {
     if (!template) {
       return res.status(404).json({ error: 'Template bulunamadı' });
     }
+    
+    // Şablon diline göre transporter ve sender bilgisi al
+    const templateLang = template.language || 'pl';
+    const transport = getTransporter(templateLang);
+    if (!transport) {
+      return res.status(503).json({ error: `Email servisi yapılandırılmamış (${templateLang.toUpperCase()})` });
+    }
+    const senderInfo = getSenderInfo(templateLang);
+    logger.info(`📧 Kampanya gönderimi başlıyor - Şablon dili: ${templateLang.toUpperCase()}, Gönderen: ${senderInfo.email}`);
     
     // Listelerdeki aboneleri al
     const listIds = campaign.listIds.split(',').map(id => parseInt(id.trim()));
@@ -1547,9 +1604,9 @@ router.post('/campaigns/:id/send', async (req, res) => {
           ? replaceTemplateVariables(campaign.subject, variables)
           : replaceTemplateVariables(template.subject, variables);
         
-        // Email gönder
+        // Email gönder - şablon diline göre gönderen adresi
         const mailOptions = {
-          from: `"${campaign.fromName || 'Happy Smile Clinics'}" <${campaign.fromEmail || process.env.BULK_EMAIL_USER}>`,
+          from: `"${campaign.fromName || senderInfo.name}" <${campaign.fromEmail || senderInfo.email}>`,
           to: subscriber.email,
           subject: encodeSubject(subjectRaw),
           html: htmlContent,
@@ -1760,8 +1817,13 @@ router.post('/campaigns/:id/resume', async (req, res) => {
     campaign.status = 'sending';
     await campaignRepo.save(campaign);
     
+    // Şablon diline göre transporter ve sender bilgisi al
+    const templateLang = template.language || 'pl';
+    const transport = getTransporter(templateLang);
+    const senderInfo = getSenderInfo(templateLang);
+    logger.info(`📧 Kampanya devam - Şablon dili: ${templateLang.toUpperCase()}, Gönderen: ${senderInfo.email}`);
+    
     const unsubscribeBaseUrl = process.env.API_BASE_URL || 'https://happysmileclinics.net';
-    const transport = getTransporter();
     
     let sentCount = 0;
     let failedCount = 0;
@@ -1825,8 +1887,9 @@ router.post('/campaigns/:id/resume', async (req, res) => {
           ? replaceTemplateVariables(campaign.subject, variables)
           : replaceTemplateVariables(template.subject, variables);
         
+        // Email gönder - şablon diline göre gönderen adresi
         const mailOptions = {
-          from: `"${campaign.fromName || 'Happy Smile Clinics'}" <${campaign.fromEmail || process.env.BULK_EMAIL_USER}>`,
+          from: `"${campaign.fromName || senderInfo.name}" <${campaign.fromEmail || senderInfo.email}>`,
           to: subscriber.email,
           subject: encodeSubject(subjectRaw),
           html: htmlContent,
@@ -3161,19 +3224,28 @@ router.put('/debug/set-language/:id', async (req, res) => {
 // POST /api/email/test - Test email gönder
 router.post('/test', async (req, res) => {
   try {
-    const transport = getTransporter();
-    if (!transport) {
-      return res.status(503).json({ error: 'Email servisi yapılandırılmamış. BULK_EMAIL_USER ve BULK_EMAIL_PASS env değişkenlerini kontrol edin.' });
-    }
+    const { to, subject, html, text, lang } = req.body;
     
-    const { to, subject, html, text } = req.body;
+    // Dil parametresine göre transporter seç (varsayılan: pl)
+    const emailLang = lang === 'en' ? 'en' : 'pl';
+    const transport = getTransporter(emailLang);
+    const senderInfo = getSenderInfo(emailLang);
+    
+    if (!transport) {
+      return res.status(503).json({ 
+        error: `Email servisi yapılandırılmamış (${emailLang.toUpperCase()}). Environment variables kontrol edin.`,
+        requiredEnvVars: emailLang === 'en' 
+          ? ['BULK_EMAIL_USER_EN', 'BULK_EMAIL_PASS_EN'] 
+          : ['BULK_EMAIL_USER_PL veya BULK_EMAIL_USER', 'BULK_EMAIL_PASS_PL veya BULK_EMAIL_PASS']
+      });
+    }
     
     if (!to) {
       return res.status(400).json({ error: 'to (alıcı email) zorunludur' });
     }
     
     const mailOptions = {
-      from: `"${process.env.BULK_EMAIL_FROM_NAME || 'Happy Smile Clinics'}" <${process.env.BULK_EMAIL_USER}>`,
+      from: `"${senderInfo.name}" <${senderInfo.email}>`,
       to,
       subject: encodeSubject(subject || 'Test Email - Happy Smile Clinics'),
       html: html || '<h1>Test Email</h1><p>Bu bir test emailidir.</p>',
@@ -3182,11 +3254,13 @@ router.post('/test', async (req, res) => {
     
     const info = await transport.sendMail(mailOptions);
     
-    logger.info(`✅ Test email gönderildi: ${to}`);
+    logger.info(`✅ Test email gönderildi (${emailLang.toUpperCase()}): ${to} - Gönderen: ${senderInfo.email}`);
     res.json({ 
       success: true, 
       message: 'Test email gönderildi',
-      messageId: info.messageId 
+      messageId: info.messageId,
+      language: emailLang,
+      sender: senderInfo.email
     });
   } catch (error) {
     logger.error('Test email hatası:', error);
