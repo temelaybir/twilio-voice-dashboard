@@ -19,6 +19,9 @@ const rateLimitStore = {
   dailyResetDate: new Date().toDateString()
 };
 
+// Migration flag - language sütunu eklendi mi?
+let languageColumnMigrated = false;
+
 // Database initialization middleware
 async function ensureDatabase(req, res, next) {
   try {
@@ -36,6 +39,39 @@ async function ensureDatabase(req, res, next) {
         return res.status(503).json({ error: 'Database initialization failed' });
       }
       logger.info('✅ Database initialized successfully');
+    }
+    
+    // Language sütunu migration - bir kez çalış
+    if (!languageColumnMigrated) {
+      try {
+        const queryRunner = AppDataSource.createQueryRunner();
+        
+        // MySQL için sütun var mı kontrol et
+        const columns = await queryRunner.query(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'email_templates' 
+          AND COLUMN_NAME = 'language'
+        `);
+        
+        if (columns.length === 0) {
+          logger.info('🔄 email_templates tablosuna language sütunu ekleniyor...');
+          await queryRunner.query(`
+            ALTER TABLE email_templates 
+            ADD COLUMN language VARCHAR(10) DEFAULT 'pl'
+          `);
+          logger.info('✅ language sütunu başarıyla eklendi');
+        } else {
+          logger.info('✅ language sütunu zaten mevcut');
+        }
+        
+        await queryRunner.release();
+        languageColumnMigrated = true;
+      } catch (migrationError) {
+        logger.warn('⚠️ Language sütunu migration hatası (muhtemelen zaten var):', migrationError.message);
+        languageColumnMigrated = true; // Hata olsa bile tekrar deneme
+      }
     }
     
     next();
