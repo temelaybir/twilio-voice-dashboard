@@ -2996,6 +2996,55 @@ router.get('/campaigns/:id/stats', async (req, res) => {
   }
 });
 
+// ==================== DEBUG / MIGRATION ====================
+
+// GET /api/email/debug/add-language-column - Language sütununu manuel ekle
+router.get('/debug/add-language-column', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not initialized' });
+    }
+    
+    const queryRunner = AppDataSource.createQueryRunner();
+    
+    // Sütun var mı kontrol et
+    const columns = await queryRunner.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'email_templates' 
+      AND COLUMN_NAME = 'language'
+    `);
+    
+    if (columns.length === 0) {
+      // Sütun yok, ekle
+      await queryRunner.query(`
+        ALTER TABLE email_templates 
+        ADD COLUMN language VARCHAR(10) DEFAULT 'pl'
+      `);
+      await queryRunner.release();
+      
+      logger.info('✅ language sütunu başarıyla eklendi');
+      return res.json({ 
+        success: true, 
+        message: 'language sütunu eklendi',
+        action: 'added'
+      });
+    } else {
+      await queryRunner.release();
+      return res.json({ 
+        success: true, 
+        message: 'language sütunu zaten mevcut',
+        action: 'already_exists'
+      });
+    }
+  } catch (error) {
+    logger.error('Debug add-language-column hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== TEST EMAIL ====================
 
 // POST /api/email/test - Test email gönder
