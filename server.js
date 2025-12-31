@@ -172,15 +172,17 @@ app.use(cors({
 app.use(morgan('combined', { stream: logger.stream }));
 
 // Raw body'yi saklamak için express.json() verify callback kullan
+// Limit: 50MB (büyük toplu içe aktarma için)
 app.use(express.json({
+  limit: '50mb',
   verify: (req, res, buf) => {
     // Raw body'yi sakla (Twilio signature validation için)
     req.rawBody = buf;
   }
 }));
 
-app.use(express.urlencoded({ extended: true }));
-app.use(bodyParser.raw({ type: '*/*' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(bodyParser.raw({ type: '*/*', limit: '50mb' }));
 
 // Ana sayfa route'u - Karşılama sayfası
 app.get('/', (req, res) => {

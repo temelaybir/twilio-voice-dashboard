@@ -124,7 +124,8 @@ export function SubscriberImportModal({
   }, [lists, selectedListId])
 
   const getApiBaseUrl = () => {
-    const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    // Production URL - www ile kullan (redirect sorunu için)
+    const envUrl = process.env.NEXT_PUBLIC_API_URL || 'https://www.happysmileclinics.net'
     if (envUrl.endsWith('/api')) return envUrl
     if (envUrl.endsWith('/api/')) return envUrl.slice(0, -1)
     return `${envUrl.replace(/\/$/, '')}/api`

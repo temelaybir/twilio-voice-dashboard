@@ -2,7 +2,8 @@
 
 // API URL formatını düzelt: /api varsa bırak, yoksa ekle
 const getApiBaseUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  // Production URL - www ile kullan (redirect sorunu için)
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || 'https://www.happysmileclinics.net'
   // Eğer zaten /api ile bitiyorsa, olduğu gibi kullan
   if (envUrl.endsWith('/api')) {
     return envUrl

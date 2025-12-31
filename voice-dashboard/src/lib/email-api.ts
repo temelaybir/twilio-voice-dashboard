@@ -16,7 +16,8 @@ import type {
 
 // API URL formatını düzelt
 const getApiBaseUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  // Production URL - www ile kullan (redirect sorunu için)
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || 'https://www.happysmileclinics.net'
   if (envUrl.endsWith('/api')) {
     return envUrl
   }
@@ -218,12 +219,31 @@ export async function bulkCreateSubscribers(
   subscribers: Array<Partial<SubscriberFormData>>,
   listId: number
 ): Promise<{ success: boolean; data: BulkSubscriberResult }> {
-  const response = await fetch(`${API_BASE_URL}/email/subscribers/bulk`, {
+  const url = `${API_BASE_URL}/email/subscribers/bulk`
+  console.log('🔵 [bulkCreateSubscribers] URL:', url)
+  console.log('🔵 [bulkCreateSubscribers] listId:', listId, 'subscribers count:', subscribers.length)
+  
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ subscribers, listId })
   })
-  const data = await response.json()
+  
+  console.log('🔵 [bulkCreateSubscribers] Response status:', response.status, response.statusText)
+  console.log('🔵 [bulkCreateSubscribers] Response headers:', Object.fromEntries(response.headers.entries()))
+  
+  // Response text olarak al, sonra JSON parse et
+  const responseText = await response.text()
+  console.log('🔵 [bulkCreateSubscribers] Response text (first 500 chars):', responseText.substring(0, 500))
+  
+  let data
+  try {
+    data = JSON.parse(responseText)
+  } catch (parseError) {
+    console.error('🔴 [bulkCreateSubscribers] JSON Parse Error:', parseError)
+    console.error('🔴 [bulkCreateSubscribers] Full response:', responseText)
+    throw new Error(`API JSON parse hatası: ${responseText.substring(0, 100)}`)
+  }
   
   if (!response.ok) {
     throw new Error(data.error || `HTTP ${response.status}`)

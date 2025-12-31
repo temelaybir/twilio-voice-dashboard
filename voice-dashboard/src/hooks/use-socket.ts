@@ -111,7 +111,8 @@ export function useSocket(): UseSocketReturn {
   const checkConnection = useCallback(async () => {
     try {
       // NEXT_PUBLIC_API_URL zaten /api içerebilir, kontrol et
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+      // Production URL - www ile kullan (redirect sorunu için)
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://www.happysmileclinics.net'
       
       // Eğer /api ile bitiyorsa, backend root endpoint'ine git
       // Backend'de / endpoint'i var, /api/calls/ değil
