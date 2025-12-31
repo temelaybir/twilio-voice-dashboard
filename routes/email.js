@@ -234,7 +234,7 @@ router.post('/templates', async (req, res) => {
     const { EmailTemplate } = require('../models/EmailTemplate');
     const templateRepo = AppDataSource.getRepository(EmailTemplate);
     
-    const { name, subject, htmlContent, textContent, variables, category } = req.body;
+    const { name, subject, htmlContent, textContent, variables, category, language } = req.body;
     
     if (!name || !subject || !htmlContent) {
       return res.status(400).json({ error: 'name, subject ve htmlContent zorunludur' });
@@ -246,7 +246,8 @@ router.post('/templates', async (req, res) => {
       htmlContent,
       textContent,
       variables: variables ? JSON.stringify(variables) : null,
-      category: category || 'general'
+      category: category || 'general',
+      language: language || 'pl'
     });
     
     await templateRepo.save(template);
@@ -276,16 +277,17 @@ router.put('/templates/:id', async (req, res) => {
       return res.status(404).json({ error: 'Template bulunamadı' });
     }
     
-    const { name, subject, htmlContent, textContent, variables, category, isActive } = req.body;
-    
+    const { name, subject, htmlContent, textContent, variables, category, language, isActive } = req.body;
+
     if (name) template.name = name;
     if (subject) template.subject = subject;
     if (htmlContent) template.htmlContent = htmlContent;
     if (textContent !== undefined) template.textContent = textContent;
     if (variables !== undefined) template.variables = variables ? JSON.stringify(variables) : null;
     if (category) template.category = category;
+    if (language) template.language = language;
     if (isActive !== undefined) template.isActive = isActive;
-    
+
     await templateRepo.save(template);
     
     logger.info(`✅ Email template güncellendi: ${template.name}`);
