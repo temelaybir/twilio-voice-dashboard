@@ -3045,6 +3045,76 @@ router.get('/debug/add-language-column', async (req, res) => {
   }
 });
 
+// GET /api/email/debug/check-template/:id - Template'in raw SQL değerlerini kontrol et
+router.get('/debug/check-template/:id', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not initialized' });
+    }
+    
+    const queryRunner = AppDataSource.createQueryRunner();
+    
+    // Raw SQL ile template'i al
+    const rawResult = await queryRunner.query(`
+      SELECT id, name, language, category FROM email_templates WHERE id = ?
+    `, [parseInt(req.params.id)]);
+    
+    // TypeORM ile template'i al
+    const { EmailTemplate } = require('../models/EmailTemplate');
+    const templateRepo = AppDataSource.getRepository(EmailTemplate);
+    const ormResult = await templateRepo.findOne({ where: { id: parseInt(req.params.id) } });
+    
+    await queryRunner.release();
+    
+    res.json({
+      success: true,
+      rawSQL: rawResult[0] || null,
+      typeORM: ormResult ? { id: ormResult.id, name: ormResult.name, language: ormResult.language, category: ormResult.category } : null
+    });
+  } catch (error) {
+    logger.error('Debug check-template hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/email/debug/set-language/:id - Template language'ı direkt SQL ile güncelle
+router.put('/debug/set-language/:id', async (req, res) => {
+  try {
+    const { AppDataSource } = require('../config/database');
+    if (!AppDataSource?.isInitialized) {
+      return res.status(503).json({ error: 'Database not initialized' });
+    }
+    
+    const { language } = req.body;
+    if (!language) {
+      return res.status(400).json({ error: 'language zorunlu' });
+    }
+    
+    const queryRunner = AppDataSource.createQueryRunner();
+    
+    await queryRunner.query(`
+      UPDATE email_templates SET language = ? WHERE id = ?
+    `, [language, parseInt(req.params.id)]);
+    
+    // Sonucu kontrol et
+    const result = await queryRunner.query(`
+      SELECT id, name, language FROM email_templates WHERE id = ?
+    `, [parseInt(req.params.id)]);
+    
+    await queryRunner.release();
+    
+    logger.info(`✅ Template ${req.params.id} language güncellendi: ${language}`);
+    res.json({
+      success: true,
+      data: result[0]
+    });
+  } catch (error) {
+    logger.error('Debug set-language hatası:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== TEST EMAIL ====================
 
 // POST /api/email/test - Test email gönder
